@@ -1,0 +1,13 @@
+{
+  "name": "minhas-financas",
+  "version": "1.0.0",
+  "description": "Minhas Finanças: orçamento, caixinhas, renda dos plantões, extratos, raio-X, calendário e milhas.",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "icones": "node scripts/icones.mjs",
+    "test": "npm run build && node --test tests/*.test.cjs",
+    "serve": "npm run build && npx http-server dist/site -p 4174 -c-1"
+  },
+  "engines": { "node": ">=20" }
+}

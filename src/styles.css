@@ -220,3 +220,16 @@ button.li:active,a.li:active{background:var(--pressed)}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
+
+/* conversa com o consultor */
+.conversa{display:grid;gap:10px}
+.bolha{max-width:86%;padding:11px 14px;border-radius:18px;font-size:15.5px;line-height:1.45;box-shadow:var(--sombra)}
+.bolha.eu{justify-self:end;background:linear-gradient(135deg,var(--mar1),var(--mar2));color:#fff;border-bottom-right-radius:6px}
+.bolha.ia{justify-self:start;background:var(--card);border-bottom-left-radius:6px}
+.bolha.erro{background:color-mix(in srgb,var(--bad) 12%,var(--card))}
+.bolha.pensando{color:var(--sec);animation:pulsa 1.2s ease-in-out infinite}
+@keyframes pulsa{50%{opacity:.5}}
+.bolha .grupo{box-shadow:none;background:var(--card2)}
+.caixa-chat{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom,0px));z-index:7;display:flex;gap:8px;max-width:720px;margin:0 auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));background:color-mix(in srgb,var(--fundo) 88%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.caixa-chat input{flex:1;min-height:42px;border-radius:21px;border:1px solid var(--sep);background:var(--card);padding:0 16px;font-size:16px}
+.caixa-chat .btn{border-radius:21px;min-height:42px}

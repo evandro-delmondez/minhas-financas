@@ -47,6 +47,34 @@ function iaParse(txt) {
   throw new Error("A IA não respondeu no formato esperado");
 }
 const b64Arq = (f) => new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = () => erro(r.error); r.readAsDataURL(f); });
+// pergunta genérica: sistema + conversa [{role, content}] + anexos (só na última mensagem) → JSON
+async function iaPergunta(sistema, conversa, anexos = []) {
+  if (!iaModo()) throw new Error("Ligue a IA em Ajustes → IA");
+  if (iaModo() === "claude") {
+    const imgs = anexos.filter((a) => a.tipo === "img").map((a) => a.f);
+    if (imgs.length && !(iaLimites && iaLimites.images)) throw new Error("Aqui não dá para mandar imagem: cole o texto ou use o site instalado");
+    const msgs = conversa.map((m, i) => ({ role: m.role, content: i === 0 ? sistema + "\n\n---\n\n" + m.content : m.content }));
+    try { return await iaSample.json(msgs, imgs.length ? { images: imgs } : {}); }
+    catch (e) { throw new Error(e && e.code === "not_granted" ? "Permita o uso do Claude para este painel e tente de novo" : e && e.code === "rate_limited" ? "Muitos pedidos seguidos: espere um minuto" : (e && e.message) || "A IA não respondeu"); }
+  }
+  const msgs = conversa.map((m) => ({ role: m.role, content: m.content }));
+  const ult = msgs[msgs.length - 1], content = [];
+  for (const a of anexos) {
+    if (a.tipo === "img") content.push({ type: "image", source: { type: "base64", media_type: a.f.type || "image/jpeg", data: await b64Arq(a.f) } });
+    else if (a.tipo === "pdf") content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: await b64Arq(a.f) } });
+  }
+  content.push({ type: "text", text: ult.content }); ult.content = content;
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": iaChave(), "anthropic-version": "2023-06-01", "anthropic-beta": "server-side-fallback-2026-07-01", "anthropic-dangerous-direct-browser-access": "true" },
+    body: JSON.stringify({ model: IA_MODELO, max_tokens: 16000, output_config: { effort: "medium" }, fallbacks: "default", system: sistema, messages: msgs }),
+  });
+  if (!r.ok) { let m = ""; try { m = (await r.json()).error.message; } catch (e) {} throw new Error(r.status === 401 ? "Chave da API recusada: confira em Ajustes → IA" : r.status === 429 ? "Muitos pedidos seguidos: espere um minuto" : `Erro ${r.status}${m ? ": " + m : ""}`); }
+  const j = await r.json();
+  if (j.stop_reason === "refusal") throw new Error("A IA não quis processar este conteúdo");
+  if (j.stop_reason === "max_tokens") throw new Error("Resposta grande demais: peça uma parte por vez");
+  return iaParse((j.content || []).filter((b) => b.type === "text").map((b) => b.text).join(""));
+}
 async function iaApi(texto, anexos) {
   const content = [];
   for (const a of anexos) {
@@ -83,6 +111,109 @@ async function textoDoPdf(f) {
   return out;
 }
 
+
+// ---------- contexto: tudo o que o consultor precisa saber, só com números reais ----------
+function contextoConsultor() {
+  const h = hoje(), cfg = estado.config, ymAt = mesDe(h), ref1 = proxSalario(h), tx = todasTx();
+  const renda = [-1, 0, 1].map((i) => { const ym = somaMes(ymAt, i), r = rendaDoMes(estado, ym, h); return { trabalhoDe: ym, recebeEm: r.recebe, confirmado: r.min, plantoesComFichas: r.plantoes.filter((p) => p.status === "contado").length, plantoesMarcadosSemFichas: r.plantoes.filter((p) => p.status === "marcado" || p.status === "sobreaviso").length, extras: r.lanc.map((l) => `${l.desc} R$ ${l.min}`) }; });
+  const nm = numeroMinimo(estado, ymAt, h), ymG = mesDe(rendaDoMes(estado, ref1, h).recebe);
+  const orc = (ym) => { const o = orcamentoDe(estado, ym), t = totaisOrc(o); return { mes: ym, rendaDefinida: o.renda, total: t.total, fixos: t.fix, vida: t.vida, caixinhas: t.cx, essencial: totaisEss(o).ess, itens: o.itens.map((i) => ({ id: i.id, n: i.n, g: i.g, v: +i.v || 0, onde: i.p || "", essencial: ehEssencial(i), ate: i.ate || undefined })) }; };
+  const pm = projetaMeta(estado, h), rx = raioX(tx, { desde: somaMes(ymAt, -5) }), esc0 = escadaParcelas(tx, ymAt), man = cfg.parcelasManual || {};
+  const parcelas = {}; for (let i = 0; i < 8; i++) { const m = somaMes(ymAt, i); const v = Math.max(esc0.escada[m] || 0, man[m] || 0); if (v) parcelas[m] = Math.round(v); }
+  const ms = mesada(estado, tx, h);
+  return {
+    hoje: h, comoRecebe: `R$ ${50} por ficha e R$ 150 por UTI no Santa Lúcia, pago no dia ${cfg.diaSalario} do mês seguinte. Plantão marcado vale zero até ter fichas.`,
+    renda, meuNumero: { plantoesDe: nm.ymTrab, ganhoAteAgora: nm.ganho, essencial: nm.essencial.alvo, faltaEssencial: nm.essencial.falta, orcamento: nm.ideal.alvo, faltaOrcamento: nm.ideal.falta, ritmo: nm.ritmo && { mediaPorPlantao: Math.round(nm.ritmo.mediaValor), mediaFichas: Math.round(nm.ritmo.mediaFichas) } },
+    orcamentoProximoSalario: orc(ymG), orcamentoSeguinte: orc(somaMes(ymG, 1)), salarioFixoDesejado: cfg.salarioFixo,
+    caixinhas: estado.caixinhas.map((c) => ({ id: c.id, nome: c.nome, saldo: Math.round(saldoCx(estado, c.id)), meta: c.meta, aportePadrao: c.aporte, contaNaMeta: !!c.naMeta })),
+    meta: { alvo: pm.metaG, guardado: Math.round(pm.ini.tot), marcos: pm.marcos.map((m) => `${m.n}: ${m.ym || "depois de 4 anos"}`) },
+    parcelasFuturasNaFatura: parcelas, gastoRealMedioPorMes: rx.meses.length ? { meses: rx.meses, total: Math.round(rx.totalMedio), porCategoria: rx.media.slice(0, 10).map((m) => `${CATS[m.cat].n} R$ ${Math.round(m.media)}`) } : "sem extratos importados; referência jul-nov: " + (cfg.raioxNota || ""),
+    mesadaDaSemana: { valor: ms.valor, gasto: Math.round(ms.gasto), resta: Math.round(ms.resta) },
+    pendencias: (estado.pendencias || []).filter((p) => !p.feito).map((p) => p.t),
+    proximasDatas: eventos(estado, h, 2).slice(0, 12).map((e) => `${e.data} ${e.t}`),
+    milhas: estado.milhas.saldos, cartao: "Nubank Ultravioleta (R$ 89/mês, isento com R$ 8 mil na fatura ou R$ 50 mil guardados); fatura vence ~dia 28",
+    prioridades: "residência médica (estudo) acima de plantão extra; equilíbrio entre reserva e vida boa (inclui ver o namorado em Salvador)",
+  };
+}
+const CONSULTOR = () => `Você é o consultor financeiro e secretário pessoal dentro do app "Minhas Finanças" de um médico plantonista no Brasil. Você conhece os números dele (abaixo) e conversa como um consultor de alto nível: inteligente, caloroso, direto, com números concretos.
+
+Como pensar:
+- Dinheiro só conta quando já existe: fichas contadas no Meu Plantão (R$ 50 por ficha, R$ 150 por UTI) e valores já recebidos. Plantão marcado sem fichas vale zero. Nunca estime valor de plantão.
+- Nada de regras engessadas. As metas e referências que ele definiu são guias, não leis. Quando ele quer algo (uma compra, um parcelamento, uma viagem), mostre o impacto real (no mês, na fatura, na reserva, nas metas) e ajude a encaixar: o que ajustar, em que mês cabe melhor, alternativas. Ele decide.
+- Pense no essencial (não dá para pausar) e no pausável. Diga quanto ele precisa faturar e quantas fichas e plantões isso dá no ritmo dele.
+- Estudar para a residência é prioridade: plantão a mais não pode roubar estudo.
+- Seja breve: 2 a 8 frases, ou uma lista curta. Use R$ com ponto de milhar. Português do Brasil, sem jargão.
+
+Responda SÓ com JSON, sem cercas de código: {"resposta": "texto para ele (pode ter quebras de linha \\n)", "acoes": [ ... ]}
+"acoes" é opcional: só quando fizer sentido propor algo para ele lançar com um toque, nos mesmos formatos do assistente:
+{"tipo":"gasto_mesada","data":"AAAA-MM-DD","valor":50,"desc":"..."} · {"tipo":"renda","ref":"AAAA-MM","desc":"...","min":250,"max":250,"tipoRenda":"extra"} · {"tipo":"caixinha","cx":"<id>","valor":500,"desc":"..."} · {"tipo":"evento","data":"AAAA-MM-DD","t":"...","d":"..."} · {"tipo":"pendencia","t":"..."} · {"tipo":"orcamento","ym":"AAAA-MM","n":"nome do item (igual ao existente para mudar o valor)","g":"fix|vida|cx","v":300,"p":"onde pagar"}
+
+Números dele agora: ${JSON.stringify(contextoConsultor())}`;
+
+// ---------- plano do mês com o consultor ----------
+async function folhaPlanoIA(ym) {
+  const h = hoje(), r = rendaDoMes(estado, somaMes(ym, -1), h), o = orcamentoDe(estado, ym), renda = o.renda != null ? +o.renda : r.min;
+  abreFolha("✨ Plano do mês", `<section class="hero fundo"><span class="k">${nomeMes(ym)} · renda ${brl(renda)}${o.renda == null ? " (fichas já contadas)" : ""}</span><span class="v" style="font-size:22px">O consultor está montando o plano…</span><span class="s">Essencial primeiro, depois reserva e vida boa em equilíbrio. Nada muda sem o seu toque.</span></section><div id="plRes"><div class="vazio">Pensando nos seus números…</div></div>`);
+  const sis = CONSULTOR() + `
+
+TAREFA AGORA: montar o orçamento de ${ym} para a renda de R$ ${renda}. Responda SÓ com JSON neste formato:
+{"resumo":"2 a 4 frases explicando a lógica do plano","porcentagens":{"essencial":0,"vida":0,"caixinhas":0},"mudancas":[{"id":"<id do item existente>","v":0,"motivo":"curto"}],"novos":[{"n":"nome","g":"fix|vida|cx","v":0,"p":"onde pagar","essencial":false,"motivo":"curto"}],"sobra":0}
+Regras do plano: não mexa no valor de itens essenciais a menos que seja impossível fechar a conta (diga por quê). Ajuste os pausáveis e as caixinhas para caber na renda. Se sobrar, distribua entre reserva, sonhos e vida, em equilíbrio. Liste em "mudancas" só os itens cujo valor muda.`;
+  try {
+    const out = await iaPergunta(sis, [{ role: "user", content: `Monte meu plano de ${nomeMes(ym)}.` }]);
+    const O = orcamentoDe(estado, ym), muda = (out.mudancas || []).map((m) => ({ m, it: O.itens.find((i) => i.id === m.id) })).filter((x) => x.it && isFinite(+x.m.v) && +x.m.v !== +x.it.v), novos = (out.novos || []).filter((n) => n && n.n);
+    const pc = out.porcentagens || {};
+    $("#plRes").innerHTML = `<div class="aviso" style="--c:var(--mar1)"><span class="ico">💬</span><div><b>${esc(out.resumo || "Plano pronto")}</b>${pc.essencial != null ? `<br><small>Essencial ${pc.essencial}% · vida ${pc.vida}% · caixinhas ${pc.caixinhas}%${out.sobra ? ` · sobra ${brl(out.sobra)}` : ""}</small>` : ""}</div></div>
+      ${muda.length ? `<section class="bloco"><div class="tit">Mudanças</div><div class="grupo">${muda.map((x, i) => `<label class="li"><span class="ico" style="--c:var(--mar1)">${emoItem(x.it)}</span><span class="t"><span>${esc(x.it.n)}</span><small>${brl(+x.it.v)} → <b>${brl(+x.m.v)}</b> · ${esc(x.m.motivo || "")}</small></span><input type="checkbox" class="troca" data-pm="${i}" checked></label>`).join("")}</div></section>` : ""}
+      ${novos.length ? `<section class="bloco"><div class="tit">Itens novos</div><div class="grupo">${novos.map((n, i) => `<label class="li"><span class="ico" style="--c:var(--mar2)">${EMO_GRUPO[n.g] || "＋"}</span><span class="t"><span>${esc(n.n)}</span><small>${brl(+n.v)} · ${esc(n.motivo || "")}</small></span><input type="checkbox" class="troca" data-pn="${i}" checked></label>`).join("")}</div></section>` : ""}
+      ${muda.length || novos.length ? `<button class="btn" id="plAplica" type="button">Aplicar no orçamento de ${mesNome(ym)}</button>` : `<p class="rod">O consultor não sugeriu mudanças: o orçamento já cabe.</p>`}`;
+    const ap = $("#plAplica"); if (ap) ap.onclick = () => {
+      const G = garanteOrc(ym); let n = 0;
+      muda.forEach((x, i) => { if ($(`[data-pm="${i}"]`).checked) { const it = G.itens.find((y) => y.id === x.it.id); if (it) { it.v = +x.m.v; n++; } } });
+      novos.forEach((x, i) => { if ($(`[data-pn="${i}"]`).checked) { G.itens.push({ id: uid("o"), n: x.n, g: GRUPOS[x.g] ? x.g : "vida", v: +x.v || 0, p: x.p || "", ess: !!x.essencial }); n++; } });
+      salva(); fechaFolha(); animar = true; redesenha(); festa("✨", `Plano de ${mesNome(ym)} atualizado (${n} ${n === 1 ? "mudança" : "mudanças"})`);
+    };
+  } catch (e) { $("#plRes").innerHTML = `<div class="aviso" style="--c:var(--bad)"><span class="ico">⚠️</span><div><b>${esc(e.message || e)}</b></div></div>`; }
+}
+
+// ---------- conversa com o consultor ----------
+const SUGESTOES = ["Quanto ainda preciso trabalhar este mês?", "Posso comprar um iPad de R$ 4 mil em 10x?", "Como fica fevereiro, o mês fraco?", "Monte meu plano do próximo mês", "Quando chego nos R$ 50 mil?", "Vale a pena pegar mais um noturno?"];
+let chatOcupado = false;
+function telaConsultor(el, h) {
+  const chat = (estado.chat || []).slice(-40);
+  el.innerHTML = `<div class="tela" style="padding-bottom:90px">
+    ${!iaModo() ? `<div class="aviso"><span class="ico">🔑</span><div><b>Ligue a IA para conversar</b><br><small>Dentro do Claude é automático. No site instalado, ponha a chave em Ajustes → IA.</small></div></div>` : ""}
+    ${chat.length ? "" : `<section class="hero fundo"><span class="k">💬 Consultor</span><span class="v" style="font-size:22px">Pergunte qualquer coisa sobre o seu dinheiro</span><span class="s">Ele vê seus plantões contados, orçamento, caixinhas, parcelas e datas, e responde com os seus números.</span></section>`}
+    <div class="conversa" id="conversa">${chat.map((m) => bolha(m)).join("")}${chatOcupado ? `<div class="bolha ia pensando">Pensando…</div>` : ""}</div>
+    <div class="chips">${SUGESTOES.map((t) => `<button class="chip" data-sug="${esc(t)}" type="button">${esc(t)}</button>`).join("")}</div>
+    ${chat.length ? `<button class="lnk" id="chatLimpa" type="button" style="justify-self:start;font-size:14px">Começar conversa nova</button>` : ""}
+  </div>
+  <form class="caixa-chat" id="chatForm"><input id="chatTxt" placeholder="Pergunte ao consultor…" autocomplete="off" aria-label="Mensagem para o consultor"><button class="btn peq" type="submit" ${chatOcupado ? "disabled" : ""}>Enviar</button></form>`;
+  const envia = async (t) => {
+    t = String(t || "").trim(); if (!t || chatOcupado) return;
+    estado.chat = (estado.chat || []).concat({ id: uid("c"), de: "eu", t, em: Date.now() }).slice(-60); salva(); chatOcupado = true; redesenha(); rolaChat();
+    try {
+      const conversa = estado.chat.slice(-16).map((m) => ({ role: m.de === "eu" ? "user" : "assistant", content: m.de === "eu" ? m.t : JSON.stringify({ resposta: m.t }) }));
+      while (conversa.length && conversa[0].role !== "user") conversa.shift();
+      const out = await iaPergunta(CONSULTOR(), conversa);
+      estado.chat.push({ id: uid("c"), de: "ia", t: String(out.resposta || "…"), acoes: Array.isArray(out.acoes) ? out.acoes.filter((a) => a && a.tipo && a.tipo !== "lancamento").slice(0, 6) : [], em: Date.now() });
+    } catch (e) { estado.chat.push({ id: uid("c"), de: "ia", t: `⚠️ ${e.message || e}`, erro: true, em: Date.now() }); }
+    chatOcupado = false; estado.chat = estado.chat.slice(-60); salva(); if (ui.aba === "consultor") { redesenha(); rolaChat(); }
+  };
+  $("#chatForm").onsubmit = (e) => { e.preventDefault(); const i = $("#chatTxt"); const t = i.value; i.value = ""; envia(t); };
+  $$("[data-sug]", el).forEach((b) => (b.onclick = () => envia(b.dataset.sug)));
+  const lp = $("#chatLimpa", el); if (lp) lp.onclick = () => { const ant = estado.chat; estado.chat = []; salva(); redesenha(); toast("Conversa nova", { rot: "Desfazer", fn: () => { estado.chat = ant; salva(); redesenha(); } }); };
+  $$("[data-lanca]", el).forEach((b) => (b.onclick = () => {
+    const m = estado.chat.find((x) => x.id === b.dataset.lanca); if (!m || m.lancado) return;
+    const n = aplicaAcoes([], m.acoes || []); m.lancado = true; salva(); redesenha(); if (n) festa("✨", `${n} ${n === 1 ? "lançamento feito" : "lançamentos feitos"}`);
+  }));
+}
+function bolha(m) {
+  const ac = (m.acoes || []).map(iaDescreve).filter(Boolean);
+  return `<div class="bolha ${m.de === "eu" ? "eu" : "ia"}${m.erro ? " erro" : ""}">${esc(m.t).replace(/\n/g, "<br>")}${ac.length ? `<div class="grupo" style="margin-top:10px">${ac.map((d) => li(d)).join("")}</div><button class="btn peq" data-lanca="${m.id}" type="button" style="margin-top:8px" ${m.lancado ? "disabled" : ""}>${m.lancado ? "Lançado ✓" : "Lançar " + (ac.length === 1 ? "isso" : `estes ${ac.length}`)}</button>` : ""}</div>`;
+}
+function rolaChat() { setTimeout(() => { const c = $("#conversa"); if (c && c.lastElementChild) c.lastElementChild.scrollIntoView({ block: "end", behavior: "smooth" }); }, 60); }
+
 // ---------- tela do assistente ----------
 let iaAnexos = [];
 function abreAssistente() {
@@ -98,10 +229,11 @@ Prova da UNIFESP dia 12/12, inscrição até 30/11"></textarea></label>
       <label class="li add" style="cursor:pointer"><span class="ico">📎</span><span class="t"><span>Anexar arquivos</span><small>CSV, PDF, foto ou print do extrato</small></span><input type="file" id="iaArq" multiple accept=".csv,.pdf,.txt,.ofx,image/*" hidden></label>
       <div id="iaLista"></div></div>
     <div class="acoes"><button class="btn" id="iaVai" type="button">✨ Analisar</button></div>
-    <div class="grupo"><button class="li" id="iaGasto" type="button"><span class="ico" style="--c:var(--mar4)">🛍️</span><span class="t">Só lançar um gasto da mesada</span><span class="chev">›</span></button></div>
+    <div class="grupo"><button class="li" id="iaChat" type="button"><span class="ico" style="--c:var(--mar5)">💬</span><span class="t">Conversar com o consultor</span><span class="chev">›</span></button><button class="li" id="iaGasto" type="button"><span class="ico" style="--c:var(--mar4)">🛍️</span><span class="t">Só lançar um gasto da mesada</span><span class="chev">›</span></button></div>
     <div id="iaRes"></div>`, (f) => {
     const cfg = $("#iaCfg", f); if (cfg) cfg.onclick = () => { fechaFolha(); setTimeout(folhaIaCfg, 300); };
     $("#iaGasto", f).onclick = () => { fechaFolha(); setTimeout(folhaGasto, 300); };
+    $("#iaChat", f).onclick = () => { fechaFolha(); vaiPara("consultor"); };
     const lista = () => { $("#iaLista", f).innerHTML = iaAnexos.map((a, i) => li({ em: { img: "🖼️", pdf: "📄", csv: "📊", txt: "📝" }[a.tipo], cor: "mar6", t: esc(a.f.name), s: a.tipo === "csv" ? "lido pelo app, sem IA" : `${Math.round(a.f.size / 1024)} KB`, v: "✕", vcls: "sec", attrs: `data-tiraanexo="${i}"` })).join(""); $$("[data-tiraanexo]", f).forEach((b) => (b.onclick = () => { iaAnexos.splice(+b.dataset.tiraanexo, 1); lista(); })); };
     $("#iaArq", f).onchange = (e) => {
       for (const a of e.target.files) iaAnexos.push({ f: a, tipo: /\.csv$/i.test(a.name) ? "csv" : /\.pdf$/i.test(a.name) || a.type === "application/pdf" ? "pdf" : /^image\//.test(a.type) ? "img" : "txt" });

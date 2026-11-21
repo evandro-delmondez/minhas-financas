@@ -135,13 +135,14 @@ function garanteOrc(ym) { if (!estado.orcamentos[ym]) { const o = orcamentoDe(es
 
 // ---------- abas ----------
 const ABAS = [["inicio", "Início", "🏠"], ["orcamento", "Orçamento", "📊"], ["caixinhas", "Caixinhas", "🐷"], ["extratos", "Extratos", "💳"], ["mais", "Mais", "☰"]];
-const MAIS = [["renda", "Renda e plantões", "🩺", "mar1"], ["raiox", "Raio-X", "🔎", "mar6"], ["calendario", "Calendário", "📅", "mar2"], ["milhas", "Milhas", "✈️", "mar5"], ["ajustes", "Ajustes", "⚙️", "gray"]];
-const TITULOS = { inicio: "Início", orcamento: "Orçamento", caixinhas: "Caixinhas", extratos: "Extratos", mais: "Mais", renda: "Renda", raiox: "Raio-X", calendario: "Calendário", milhas: "Milhas", ajustes: "Ajustes" };
+const MAIS = [["consultor", "Consultor", "💬", "mar5"], ["renda", "Renda e plantões", "🩺", "mar1"], ["raiox", "Raio-X", "🔎", "mar6"], ["calendario", "Calendário", "📅", "mar2"], ["milhas", "Milhas", "✈️", "mar5"], ["ajustes", "Ajustes", "⚙️", "gray"]];
+const TITULOS = { consultor: "Consultor", inicio: "Início", orcamento: "Orçamento", caixinhas: "Caixinhas", extratos: "Extratos", mais: "Mais", renda: "Renda", raiox: "Raio-X", calendario: "Calendário", milhas: "Milhas", ajustes: "Ajustes" };
 const ui = Object.assign({ aba: "inicio", mes: null, txMes: "", txCat: "", rxPer: 6 }, lsGet(LS.ui, {}));
 const guardaUi = () => lsSet(LS.ui, { aba: ui.aba, rxPer: ui.rxPer, tema: ui.tema });
 let animar = true;
 function vaiPara(aba) {
   if (!TITULOS[aba]) aba = "inicio";
+  if (!$("#folha").hidden) fechaFolha();
   ui.aba = aba; guardaUi(); animar = true;
   if (location.hash !== "#" + aba) try { history.replaceState(null, "", "#" + aba); } catch (e) {}
   redesenha(); window.scrollTo({ top: 0 });
@@ -160,9 +161,9 @@ function redesenha() {
   desenhaAbas();
   const el = $("#corpo"), y = window.scrollY;
   $("#app").classList.toggle("anima", animar);
-  try { ({ inicio: telaInicio, orcamento: telaOrcamento, caixinhas: telaCaixinhas, extratos: telaExtratos, mais: telaMais, renda: telaRenda, raiox: telaRaiox, calendario: telaCalendario, milhas: telaMilhas, ajustes: telaAjustes })[ui.aba](el, h); }
+  try { ({ inicio: telaInicio, orcamento: telaOrcamento, caixinhas: telaCaixinhas, extratos: telaExtratos, mais: telaMais, consultor: telaConsultor, renda: telaRenda, raiox: telaRaiox, calendario: telaCalendario, milhas: telaMilhas, ajustes: telaAjustes })[ui.aba](el, h); }
   catch (e) { console.error(e); el.innerHTML = `<div class="tela"><div class="aviso" style="--c:var(--bad)"><span class="ico">⚠️</span><div><b>Não consegui montar esta tela</b><br><small>${esc(e.message || e)}. Seus dados estão salvos; me mande esta frase.</small></div></div></div>`; }
-  $("#fab").hidden = ["ajustes", "mais"].includes(ui.aba);
+  $("#fab").hidden = ["ajustes", "mais", "consultor"].includes(ui.aba);
   if (animar) { animaContas(el); animar = false; setTimeout(() => $("#app").classList.remove("anima"), 1000); } else window.scrollTo({ top: y });
   mostraSelo();
 }
@@ -210,7 +211,8 @@ function telaInicio(el, h) {
       <button class="tile" data-ir="mesada" type="button"><span class="ico" style="--c:var(--mar4)">🛍️</span><span class="k">Mesada da semana</span><span class="v" style="${ms.resta < 0 ? "color:var(--bad)" : ""}">${conta(ms.resta)}</span>${barra((ms.gasto / ms.valor) * 100, ms.resta < 0 ? "bad" : "mar4")}<span class="s">${ms.resta > 0 ? `${brl(ms.porDia)} por dia até dom.` : "semana fechada"}</span></button>
       <button class="tile" data-ir="caixinhas" type="button"><span class="ico" style="--c:var(--mar5)">🐷</span><span class="k">Meta ${brl(pm.metaG)}</span><span class="v">${conta(pct, (x) => Math.round(x) + "%")}</span>${barra(pct, "mar5")}<span class="s">${proxMarco && proxMarco.ym ? `${esc(proxMarco.n.split(" (")[0])}: ${nomeMes(proxMarco.ym, true)}` : `${brl(pm.ini.tot)} guardados`}</span></button>
     </div>
-    <div class="grupo"><button class="li" data-ir="assistente" type="button"><span class="ico cheio" style="--c:var(--mar2)">✨</span><span class="t"><span>Mandar para a IA</span><small>Extrato do mês, foto, print ou só uma frase: ela lança e calcula</small></span><span class="chev">›</span></button>
+    ${numeroHtml(h)}
+    <div class="grupo"><button class="li" data-ir="consultor" type="button"><span class="ico cheio" style="--c:var(--mar5)">💬</span><span class="t"><span>Conversar com o consultor</span><small>Pergunte qualquer coisa: compras, plantões, metas, o mês que vem</small></span><span class="chev">›</span></button><button class="li" data-ir="assistente" type="button"><span class="ico cheio" style="--c:var(--mar2)">✨</span><span class="t"><span>Mandar para a IA</span><small>Extrato do mês, foto, print ou só uma frase: ela lança e calcula</small></span><span class="chev">›</span></button>
       ${li({ em: "📥", cor: "mar1", t: "Extrato do mês", s: ultExtrato ? `último importado: ${nomeMes(ultExtrato)}` : "nenhum importado ainda", chev: true, attrs: 'data-ir="extratos"' })}</div>
     <section class="bloco"><div class="tit">${mesNome(ymG)}<button data-ir="orcamento" type="button">Ver tudo</button></div>
       <div class="grupo">${Object.entries(GRUPOS).map(([g, G]) => li({ em: EMO_GRUPO[g], cor: COR_GRUPO[g], t: G.n, s: o.itens.filter((i) => i.g === g).slice(0, 3).map((i) => esc(i.n.split(" (")[0])).join(", "), v: brl(t[g]), chev: true, attrs: 'data-ir="orcamento"' })).join("")}</div></section>
@@ -222,13 +224,34 @@ function telaInicio(el, h) {
     <section class="bloco"><div class="tit">Próximas datas<button data-ir="calendario" type="button">Calendário</button></div>
       <div class="grupo">${evs.map((e) => evLi(e, h)).join("")}</div></section>
     <section class="bloco"><div class="tit">Pendências · ${pend.length}</div>
-      <div class="grupo">${(estado.pendencias || []).slice().sort((a, b) => a.feito - b.feito).slice(0, pend.length + 2).map((p) => `<label class="li"><input type="checkbox" class="troca" data-pend="${p.id}" ${p.feito ? "checked" : ""}><span class="t" style="${p.feito ? "color:var(--sec);text-decoration:line-through" : ""}">${esc(p.t)}</span></label>`).join("")}
-      <button class="li add" data-novapend type="button"><span class="ico">＋</span><span class="t">Nova pendência</span></button></div></section>
+      <div class="grupo">${pend.map((p) => `<label class="li"><input type="checkbox" class="troca" data-pend="${p.id}"><span class="t">${esc(p.t)}</span></label>`).join("") || `<div class="vazio">Nada pendente 🌊</div>`}
+      <button class="li add" data-novapend type="button"><span class="ico">＋</span><span class="t">Nova pendência</span></button></div>
+      ${(estado.pendencias || []).some((p) => p.feito) ? `<details class="grupo"><summary class="li" style="color:var(--sec)">Concluídas · ${estado.pendencias.filter((p) => p.feito).length}</summary>${estado.pendencias.filter((p) => p.feito).map((p) => `<label class="li"><input type="checkbox" class="troca" data-pend="${p.id}" checked><span class="t" style="color:var(--sec);text-decoration:line-through">${esc(p.t)}</span></label>`).join("")}</details>` : ""}</section>
   </div>`;
-  $$("[data-ir]", el).forEach((b) => (b.onclick = () => (b.dataset.ir === "mesada" ? folhaMesada(h) : b.dataset.ir === "assistente" ? abreAssistente() : vaiPara(b.dataset.ir))));
-  $$("[data-pend]", el).forEach((c) => (c.onchange = () => { const p = estado.pendencias.find((x) => x.id === c.dataset.pend); p.feito = c.checked; salva(); if (c.checked) toast("Feito ✓"); if (c.checked && !estado.pendencias.some((x) => !x.feito)) festa("🎉", "Todas as pendências resolvidas!"); setTimeout(redesenha, 350); }));
+  $$("[data-ir]", el).forEach((b) => (b.onclick = () => (b.dataset.ir === "mesada" ? folhaMesada(h) : b.dataset.ir === "assistente" ? abreAssistente() : b.dataset.ir === "numero" ? folhaNumero(h) : vaiPara(b.dataset.ir))));
+  $$("[data-pend]", el).forEach((c) => (c.onchange = () => { const p = estado.pendencias.find((x) => x.id === c.dataset.pend); p.feito = c.checked; p.em = Date.now(); salva(); if (c.checked) toast("Feito ✓ · está em Concluídas"); if (c.checked && !estado.pendencias.some((x) => !x.feito)) festa("🎉", "Todas as pendências resolvidas!"); setTimeout(redesenha, 350); }));
   $("[data-novapend]", el).onclick = () => abreFolha("Nova pendência", `<div class="grupo"><label class="campo col"><input id="pT" placeholder="O que fazer"></label></div>`, (f) => { $("#folhaDir").onclick = () => { const t = $("#pT", f).value.trim(); if (!t) return; estado.pendencias.push({ id: uid("p"), t, feito: false }); salva(); fechaFolha(); redesenha(); }; }, "Adicionar");
   ligaEv(el);
+}
+// ---------- meu número mínimo ----------
+function numeroHtml(h) {
+  const nm = numeroMinimo(estado, mesDe(h), h), e = nm.essencial, i = nm.ideal, mx = Math.max(i.alvo, nm.ganho, 1);
+  const msg = e.falta > 0 ? `Faltam <b>${brl(e.falta)}</b> para o essencial: ${e.fichas} fichas${e.plantoes ? `, uns ${e.plantoes} plantões no seu ritmo` : ""}.` : i.falta > 0 ? `Essencial garantido ✓ Faltam <b>${brl(i.falta)}</b> para o orçamento inteiro: ${i.fichas} fichas${i.plantoes ? `, uns ${i.plantoes} plantões` : ""}.` : `Orçamento de ${mesNome(nm.ymPag)} inteiro garantido ✓ O que vier a mais vai para a reserva.`;
+  return `<button class="tile" data-ir="numero" type="button" style="gap:6px"><span class="k">🎯 Meu número · plantões de ${mesNome(nm.ymTrab)} → salário de ${diaMes(nm.recebe)}</span>
+    <span class="v">${conta(nm.ganho)} <span style="font-size:14px;font-weight:500;color:var(--sec)">ganhos de ${brl(e.alvo)} essenciais</span></span>
+    <span class="pilha" style="height:10px"><i style="--w:${(Math.min(nm.ganho, mx) / mx) * 100}%;--c:var(--mar2)"></i></span>
+    <span class="s" style="display:flex;justify-content:space-between"><span>essencial ${brl(e.alvo)}</span><span>orçamento ${brl(i.alvo)}</span></span>
+    <span class="s" style="font-size:14px;color:var(--txt)">${msg}</span></button>`;
+}
+function folhaNumero(h) {
+  const nm = numeroMinimo(estado, mesDe(h), h), o = orcamentoDe(estado, nm.ymPag), rt = nm.ritmo;
+  const ess = o.itens.filter(ehEssencial), pau = o.itens.filter((x) => !ehEssencial(x));
+  abreFolha("Meu número", `<section class="hero"><span class="k">Plantões de ${mesNome(nm.ymTrab)} · caem em ${diaMes(nm.recebe)}</span><span class="v num">${brl(nm.ganho)}</span><span class="s">ganhos até agora, só fichas contadas${nm.marcados ? ` · ${nm.marcados} plantões marcados ainda sem fichas (valem zero até acontecer)` : ""}</span>
+      <div class="pils"><span class="pil">Essencial<b>${brl(nm.essencial.alvo)}</b></span><span class="pil">Orçamento<b>${brl(nm.ideal.alvo)}</b></span>${rt ? `<span class="pil">Seu ritmo<b>${brl(Math.round(rt.mediaValor))}/plantão</b></span>` : ""}</div></section>
+    <div class="grupo">${li({ em: "🛟", cor: "mar2", t: "Para o essencial", s: nm.essencial.falta ? `${nm.essencial.fichas} fichas${nm.essencial.plantoes ? ` · uns ${nm.essencial.plantoes} plantões` : ""}` : "garantido", v: nm.essencial.falta ? brl(nm.essencial.falta) : "✓" })}${li({ em: "🌊", cor: "mar1", t: "Para o orçamento inteiro", s: nm.ideal.falta ? `${nm.ideal.fichas} fichas${nm.ideal.plantoes ? ` · uns ${nm.ideal.plantoes} plantões` : ""}` : "garantido", v: nm.ideal.falta ? brl(nm.ideal.falta) : "✓" })}</div>
+    <p class="rod">${rt ? `Seu ritmo nos últimos 90 dias: ${rt.plantoes} plantões, média de ${Math.round(rt.mediaFichas)} fichas e ${brl(Math.round(rt.mediaValor))} por plantão. É só referência: o dinheiro só conta quando as fichas existem.` : "Quando houver pelo menos 3 plantões com fichas nos últimos 90 dias, aparece quantos plantões isso dá no seu ritmo."}</p>
+    <section class="bloco"><div class="tit">Essencial · ${brl(ess.reduce((a, x) => a + +x.v, 0))}</div><div class="grupo">${ess.map((x) => li({ em: emoItem(x), cor: "mar2", t: esc(x.n), v: brl(+x.v) })).join("")}</div></section>
+    <section class="bloco"><div class="tit">Pausável · ${brl(pau.reduce((a, x) => a + +x.v, 0))}</div><div class="grupo">${pau.map((x) => li({ em: emoItem(x), cor: "gray", t: esc(x.n), v: brl(+x.v) })).join("")}</div><p class="rod">Mude o que é essencial tocando no item em Orçamento.</p></section>`);
 }
 function folhaMesada(h) {
   const ms = mesada(estado, todasTx(), h);
@@ -277,13 +300,14 @@ function telaOrcamento(el, h) {
       <span class="v num">${conta(sobra)}</span>
       <span class="s">Renda ${brl(renda)}${o.renda == null ? " (previsão dos plantões)" : ""} · orçado ${brl(t.total)}</span>
       <span class="pilha" style="margin-top:12px;background:rgba(255,255,255,.2)">${Object.keys(GRUPOS).map((g) => `<i style="--w:${(t[g] / base) * 100}%;--c:${g === "fix" ? "#FFFFFF" : g === "vida" ? "rgba(255,255,255,.7)" : "rgba(255,255,255,.45)"}"></i>`).join("")}</span>
-      <div class="pils">${Object.entries(GRUPOS).map(([g, G]) => `<span class="pil">${G.n}<b class="num">${brl(t[g])}</b></span>`).join("")}</div>
+      <div class="pils">${Object.entries(GRUPOS).map(([g, G]) => `<span class="pil">${G.n}<b class="num">${brl(t[g])}</b></span>`).join("")}<span class="pil">Essencial<b class="num">${brl(totaisEss(o).ess)}</b></span></div>
     </section>
+    <button class="btn" id="oIA" type="button">✨ Montar o plano com o consultor</button>
     ${o.novo ? `<div class="aviso" style="--c:var(--mar1)"><span class="ico">📝</span><div><b>Mês ainda não montado</b><br><small>Mostrando a base do mês anterior. Ao mudar qualquer coisa, vira o orçamento de ${mesNome(ym)}.</small></div></div>` : ""}
     <section class="bloco"><div class="tit">Renda</div><div class="grupo">${li({ em: "💵", cor: "mar2", t: "Renda do mês", s: `previsão dos plantões de ${mesNome(r.ym)}: ${r.max ? faixa(r.min, r.max) : "nenhum"}`, v: brl(renda), chev: true, attrs: 'data-renda="1"' })}</div></section>
     ${sobra < 0 ? `<div class="aviso" style="--c:var(--bad)"><span class="ico">🚨</span><div><b>Passou da renda em ${brl(-sobra)}</b><br><small>Corte em estilo de vida ou nas caixinhas.</small></div></div>` : ""}
     ${Object.entries(GRUPOS).map(([g, G]) => `<section class="bloco"><div class="tit">${G.n}<b class="num">${brl(t[g])}</b></div><div class="grupo">
-      ${o.itens.filter((i) => i.g === g).map((i) => li({ em: emoItem(i), cor: COR_GRUPO[g], t: esc(i.n), s: esc([i.p, i.ate ? `até ${nomeMes(i.ate, true)}` : "", i.so ? `só em ${nomeMes(i.so, true)}` : ""].filter(Boolean).join(" · ")), v: brl(+i.v || 0), chev: true, attrs: `data-item="${i.id}"` })).join("")}
+      ${o.itens.filter((i) => i.g === g).map((i) => li({ em: emoItem(i), cor: COR_GRUPO[g], t: esc(i.n), s: (ehEssencial(i) ? '<span class="etq" style="--c:var(--mar2)">essencial</span> ' : '<span class="etq">pausável</span> ') + esc([i.p, i.ate ? `até ${nomeMes(i.ate, true)}` : "", i.so ? `só em ${nomeMes(i.so, true)}` : ""].filter(Boolean).join(" · ")), v: brl(+i.v || 0), chev: true, attrs: `data-item="${i.id}"` })).join("")}
       <button class="li add" data-novo="${g}" type="button"><span class="ico">＋</span><span class="t">Adicionar em ${G.n.toLowerCase()}</span></button></div></section>`).join("")}
     <section class="bloco">
       ${o.distribuido ? `<div class="aviso" style="--c:var(--ok)"><span class="ico">✅</span><div><b>Distribuído nas caixinhas em ${diaMes(o.distribuido)}</b><br><button class="lnk" id="oDesfaz" type="button">Desfazer distribuição</button></div></div>` : `<button class="btn" id="oDistr" type="button">Dia ${estado.config.diaSalario}: distribuir nas caixinhas</button><p class="rod">Lança nas caixinhas o valor dos itens cujo "onde pagar" é uma caixinha. Antes, pague a fatura.</p>`}
@@ -298,6 +322,7 @@ function telaOrcamento(el, h) {
     $("#folhaDir").onclick = () => { const O = garanteOrc(ym), v = $("#fR", f).value.trim(); O.renda = v === "" ? null : numero(v); salva(); fechaFolha(); redesenha(); };
   }, "Salvar");
   $$("[data-item]", el).forEach((b) => (b.onclick = () => folhaItem(ym, b.dataset.item)));
+  $("#oIA", el).onclick = () => folhaPlanoIA(ym);
   $$("[data-novo]", el).forEach((b) => (b.onclick = () => folhaItem(ym, null, b.dataset.novo)));
   const dist = $("#oDistr", el);
   if (dist) dist.onclick = () => {
@@ -321,6 +346,7 @@ function folhaItem(ym, id, grupoNovo) {
       ${campo("Onde pagar", `<input id="iP" list="ondes" value="${esc(i.p || "")}" placeholder="Ultravioleta"><datalist id="ondes">${ondes.map((x) => `<option value="${esc(x)}">`).join("")}</datalist>`)}
       ${campo("Emoji", `<input id="iE" value="${esc(i.em || "")}" placeholder="${emoItem(i)}" maxlength="4">`)}
       ${campo("Termina em", `<input id="iA" type="month" value="${esc(i.ate || "")}">`)}
+      ${campo("Essencial (não dá para pausar)", `<input type="checkbox" class="troca" id="iEss" ${ehEssencial(i) ? "checked" : ""}>`)}
     </div>
     <p class="rod">"Onde pagar" igual a uma caixinha faz o valor ir para ela ao distribuir. "Termina em" tira o item dos meses seguintes (ex.: última parcela).</p>
     ${id ? `<div class="grupo"><button class="li perigo" id="iX" type="button">Apagar item</button></div>` : ""}`, (f) => {
@@ -331,6 +357,7 @@ function folhaItem(ym, id, grupoNovo) {
       Object.assign(it, { n, v: numero($("#iV", f).value), g: $("#iG", f).value, p: $("#iP", f).value.trim() });
       const e = $("#iE", f).value.trim(); if (e) it.em = e; else delete it.em;
       const a = $("#iA", f).value; if (a) it.ate = a; else delete it.ate;
+      it.ess = $("#iEss", f).checked;
       const c = estado.caixinhas.find((c) => semAcento("Caixinha " + c.nome) === semAcento(it.p)); if (c) it.cx = c.id; else delete it.cx;
       salva(); fechaFolha(); redesenha(); toast(id ? "Item salvo" : "Item adicionado");
     };
@@ -496,25 +523,22 @@ function telaMais(el) {
 function telaRenda(el, h) {
   const pc = estado.plantaoCache, cfg = estado.config, est = Object.assign({}, EST_PADRAO, cfg.estimativas);
   const meses = [-1, 0, 1, -2].map((i) => somaMes(mesDe(h), i));
-  const corSt = { contado: "ok", previsto: "mar1", sobreaviso: "amber", "sem chamado": "gray", "sem contagem": "warn", "salário": "mar2" };
+  const corSt = { contado: "ok", marcado: "mar1", sobreaviso: "amber", "sem chamado": "gray", "sem fichas": "warn", "salário": "mar2" };
   el.innerHTML = `<div class="tela">
     <section class="bloco"><div class="tit">Meu Plantão</div><div class="grupo">
       ${li({ em: "🩺", cor: "mar1", t: pc ? `${pc.plantoes.escala.length} plantões lidos` : "Ainda não ligado", s: pc ? `atualizado ${new Date(pc.em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "a renda vem dos lançamentos abaixo" })}
       ${gh.chave ? `<button class="li add" id="plGh" type="button"><span class="ico">↻</span><span class="t">Ler do GitHub agora</span></button>` : ""}
       <button class="li add" id="plCola" type="button"><span class="ico">📋</span><span class="t">Colar o backup do Meu Plantão</span></button></div>
-      <p class="rod">R$ 50 por paciente e R$ 150 por UTI (pelo valor de cada local). O confirmado é só o que já tem contagem, igual ao Meu Plantão; plantão sem contagem aparece em "pode chegar a" pela estimativa do turno. O dinheiro cai no dia ${cfg.diaSalario} do mês seguinte.</p></section>
+      <p class="rod">R$ 50 por ficha e R$ 150 por UTI (pelo valor de cada local). Só conta o que já tem fichas, igual ao Meu Plantão: plantão marcado vale zero até acontecer. O dinheiro cai no dia ${cfg.diaSalario} do mês seguinte.</p></section>
     ${meses.map((ym) => {
       const r = rendaDoMes(estado, ym, h);
       return `<section class="bloco"><div class="tit">Plantões de ${nomeMes(ym)}<b class="num">${r.max ? faixa(r.min, r.max) : "R$ 0"}</b></div><div class="grupo">
         ${li({ em: r.pago ? "✅" : "📆", cor: r.pago ? "ok" : "mar2", t: r.pago ? "Recebido" : `Cai em ${diaSem(r.recebe)}, ${diaMes(r.recebe)}`, s: `${r.plantoes.length} plantões${r.lanc.length ? ` · ${r.lanc.length} lançamentos` : ""}` })}
-        ${r.plantoes.map((p) => li({ em: /notur/i.test(p.rot) ? "🌙" : /sobre/i.test(p.rot) ? "📟" : "☀️", cor: corSt[p.status] || "mar1", t: `${diaMes(p.data)} · ${esc(p.rot)}`, s: `<span class="etq" style="--c:var(--${corSt[p.status] || "gray"})">${p.status}</span>${p.n != null ? ` ${p.n} pacientes${p.uti ? ` + ${p.uti} UTI` : ""}` : ""}`, v: faixa(p.min, p.max) })).join("")}
+        ${r.plantoes.map((p) => li({ em: /notur/i.test(p.rot) ? "🌙" : /sobre/i.test(p.rot) ? "📟" : "☀️", cor: corSt[p.status] || "mar1", t: `${diaMes(p.data)} · ${esc(p.rot)}`, s: `<span class="etq" style="--c:var(--${corSt[p.status] || "gray"})">${p.status}</span>${p.n != null ? ` ${p.n} fichas${p.uti ? ` + ${p.uti} UTI` : ""}` : ""}`, v: p.status === "contado" ? brl(p.min) : "—", vcls: p.status === "contado" ? "" : "sec" })).join("")}
         ${r.lanc.map((l) => li({ em: l.tipo === "extra" ? "🚑" : "🏥", cor: l.tipo === "extra" ? "orange" : "mar6", t: esc(l.desc), s: l.tipo === "extra" ? "extra" : "plantão à mão", v: faixa(+l.min || 0, +(l.max != null && l.max !== "" ? l.max : l.min) || 0), chev: true, attrs: `data-rl="${l.id}"` })).join("")}
         <button class="li add" data-nr="${ym}" type="button"><span class="ico">＋</span><span class="t">Lançar renda</span></button></div>
         ${r.usaPl && (estado.rendas || []).some((x) => x.ref === ym && x.tipo === "plantao") ? `<p class="rod">Os plantões lançados à mão ficam de fora: vale a escala do Meu Plantão.</p>` : ""}</section>`;
     }).join("")}
-    <section class="bloco"><div class="tit">Estimativa por turno</div><div class="grupo">
-      ${[["D", "☀️ Diurno 12 h"], ["N", "🌙 Noturno 12 h"], ["M", "🌅 Matutino 6 h"], ["V", "🌇 Vespertino 6 h"], ["N1", "🌙 Noturno até 1h"], ["18A", "⏱️ 18 h"], ["24", "⏱️ 24 h"], ["sobreMin", "📟 Sobreaviso (mín.)"], ["sobreMax", "📟 Sobreaviso (máx.)"]].map(([k, n]) => campo(n, `<input data-est="${k}" inputmode="decimal" value="${vIn(est[k])}">`)).join("")}</div>
-      <p class="rod">Usada só no "pode chegar a", nunca no confirmado. Plantão cheio costuma dar R$ 950 a 1.250; meio, uns R$ 800. Sobreaviso só paga se chamarem.</p></section>
   </div>`;
   const aplica = (P) => { estado.plantaoCache = { em: Date.now(), plantoes: P }; salva(); fechaFolha(); animar = true; redesenha(); toast(`${P.escala.length} plantões lidos`); };
   const g = $("#plGh", el); if (g) g.onclick = async () => { g.style.opacity = ".5"; try { aplica(await lePlantoesGitHub()); } catch (er) { toast(er.message || String(er)); g.style.opacity = ""; } };
@@ -537,7 +561,6 @@ function telaRenda(el, h) {
   };
   $$("[data-nr]", el).forEach((b) => (b.onclick = () => folhaR(b.dataset.nr)));
   $$("[data-rl]", el).forEach((b) => (b.onclick = () => folhaR(null, b.dataset.rl)));
-  $$("[data-est]", el).forEach((i) => (i.onchange = () => { estado.config.estimativas = Object.assign({}, estado.config.estimativas, { [i.dataset.est]: numero(i.value) }); salva(); redesenha(); }));
 }
 
 // ---------- Raio-X ----------
@@ -736,7 +759,7 @@ function telaBoasVindas() {
 async function inicia() {
   aplicaTema();
   const hs = location.hash.slice(1); if (TITULOS[hs]) ui.aba = hs;
-  window.addEventListener("hashchange", () => { const k = location.hash.slice(1); if (k && k !== ui.aba && TITULOS[k]) { ui.aba = k; animar = true; redesenha(); } });
+  window.addEventListener("hashchange", () => { const k = location.hash.slice(1); if (k && k !== ui.aba && TITULOS[k]) { if (!$("#folha").hidden) fechaFolha(); ui.aba = k; animar = true; redesenha(); } });
   $("#fab").onclick = abreAssistente;
   if (estado) { estado = migra(estado); redesenha(); }
   await iniciaNuvem();

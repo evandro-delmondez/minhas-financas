@@ -41,7 +41,7 @@ test("telas", async (t) => {
         await p.setInputFiles("#arq", { name: "Nubank_2026-12-28.csv", mimeType: "text/csv", buffer: Buffer.from('date,title,amount\n2026-11-20,Curem - Parcela 6/12,"132,50"\n2026-11-21,Tiktok Shop,"89,90"\n') });
         await p.waitForSelector("text=2 novas de 2");
         await ir("inicio");
-        assert.match(await p.textContent("#corpo"), /TikTok Shop de novo/);
+        assert.match(await p.textContent("#corpo"), /TikTok Shop/);
         await ir("orcamento");
         if (fs.existsSync(BK)) assert.match(await p.textContent("#corpo"), /Dezembro de 2026/);
         await p.click("#oDistr").catch(() => {});
@@ -63,7 +63,13 @@ test("telas", async (t) => {
         }
         // assistente de IA com a API simulada: frase → proposta → lançar
         await p.evaluate(() => localStorage.setItem("mf_ia_v1", JSON.stringify({ chave: "sk-ant-teste" })));
-        await p.route("https://api.anthropic.com/v1/messages", (rt) => rt.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ resumo: "Um gasto e uma renda extra", acoes: [{ tipo: "gasto_mesada", data: "2026-11-21", valor: 80, desc: "bar com o Pedro" }, { tipo: "renda", ref: "2026-11", desc: "DF Resgate", min: 960, max: 960, tipoRenda: "extra" }, { tipo: "lancamento", data: "2026-11-10", desc: "Ifood", valor: 55, cat: "delivery", origem: "nu-conta" }] }) }] }) }));
+        const resp = (o) => JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(o) }] });
+        await p.route("https://api.anthropic.com/v1/messages", (rt) => {
+          const corpo = rt.request().postData() || "";
+          if (corpo.includes("TAREFA AGORA")) { const id = JSON.parse(corpo).system.match(/"id":"(o[^"]+)","n":"Salvador/); return rt.fulfill({ status: 200, contentType: "application/json", body: resp({ resumo: "Cortei Salvador para caber na renda.", porcentagens: { essencial: 60, vida: 25, caixinhas: 15 }, mudancas: id ? [{ id: id[1], v: 300, motivo: "pausável" }] : [], novos: [] }) }); }
+          if (corpo.includes("consultor financeiro e secretário")) return rt.fulfill({ status: 200, contentType: "application/json", body: resp({ resposta: "Cabe, se você pausar Salvador em janeiro.", acoes: [{ tipo: "pendencia", t: "Ver iPad na Black Friday" }] }) });
+          return rt.fulfill({ status: 200, contentType: "application/json", body: resp({ resumo: "Um gasto e uma renda extra", acoes: [{ tipo: "gasto_mesada", data: "2026-11-21", valor: 80, desc: "bar com o Pedro" }, { tipo: "renda", ref: "2026-11", desc: "DF Resgate", min: 960, max: 960, tipoRenda: "extra" }, { tipo: "lancamento", data: "2026-11-10", desc: "Ifood", valor: 55, cat: "delivery", origem: "nu-conta" }] }) });
+        });
         await ir("inicio");
         await p.click("#fab");
         await p.fill("#iaTxt", "gastei 80 no bar com o Pedro e recebi 960 da DF Resgate");
@@ -74,6 +80,22 @@ test("telas", async (t) => {
         await p.click("#iaAplica");
         await p.waitForTimeout(1200);
         assert.match(await p.textContent("#corpo"), /R\$\s?270/); // mesada 350 − 80
+        // conversa com o consultor: pergunta → resposta com proposta → lançar
+        await ir("consultor");
+        await p.fill("#chatTxt", "Posso comprar um iPad em 10x?"); await p.click("#chatForm button");
+        await p.waitForSelector(".bolha.ia >> text=Cabe, se você pausar Salvador");
+        await p.click("[data-lanca]"); await p.waitForTimeout(300);
+        assert.ok(await p.evaluate(() => JSON.parse(localStorage.getItem("mf_estado_v1")).pendencias.some((x) => x.t === "Ver iPad na Black Friday")));
+        // plano do mês com o consultor
+        if (fs.existsSync(BK)) {
+          await ir("orcamento"); await p.click("#oIA");
+          await p.waitForSelector("#plAplica"); await p.click("#plAplica"); await p.waitForTimeout(1300);
+          assert.match(await p.textContent("#corpo"), /Salvador[\s\S]*R\$\s?300/);
+        }
+        // pendência concluída vai para "Concluídas"
+        await ir("inicio");
+        const pend1 = await p.$("[data-pend]"); await pend1.check(); await p.waitForTimeout(500);
+        assert.match(await p.textContent("#corpo"), /Concluídas · 1/);
         // chave da IA vai no plano (nuvem e backup); chave do GitHub volta pelo backup
         await ir("ajustes");
         await p.click("#iaAbre"); await p.fill("#iaK", "sk-ant-teste-123"); await p.click("#folhaDir"); await p.waitForTimeout(400);

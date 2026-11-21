@@ -53,14 +53,14 @@ test("escada de parcelas projeta as que faltam", () => {
   assert.equal(e.compras[0].fim, "2027-06");
 });
 
-test("Meu Plantão: só o contado é confirmado; previsto e sobreaviso entram no máximo", () => {
+test("Meu Plantão: só fichas contadas viram dinheiro; marcado e sobreaviso valem zero", () => {
   const P = { escala: [{ data: "2026-11-03", turno: "N", local: "hsls" }, { data: "2026-11-28", turno: "D", local: "hsls" }, { data: "2026-11-29", turno: "N", local: "hsls", sobre: true }],
     contagem: { "2026-11-03N": { n: 18, uti: 1 } }, locais: { hsls: { nome: "Santa Lúcia", tipo: "porAlta", porAlta: 50, porUti: 150 } }, pagos: {} };
   const pl = N.plantoesDoMes(P, "2026-11", N.EST_PADRAO, "2026-11-21");
-  assert.deepEqual(pl.map((p) => [p.status, p.min, p.max]), [["contado", 1050, 1050], ["previsto", 0, 1000], ["sobreaviso", 0, 600]]);
+  assert.deepEqual(pl.map((p) => [p.status, p.min, p.max]), [["contado", 1050, 1050], ["marcado", 0, 0], ["sobreaviso", 0, 0]]);
   const r = N.rendaDoMes({ plantaoCache: { plantoes: P }, rendas: [{ ref: "2026-11", tipo: "plantao", min: 999 }, { ref: "2026-11", tipo: "extra", min: 250 }], config: {} }, "2026-11", "2026-11-21");
   assert.equal(r.min, 1050 + 250); // confirmado: só o contado e o extra; o manual sai quando há escala
-  assert.equal(r.max, 1050 + 1000 + 600 + 250); // pode chegar a: com a estimativa do previsto e do sobreaviso
+  assert.equal(r.max, 1050 + 250); // sem estimativa nenhuma: plantão sem fichas vale zero
   assert.equal(r.recebe, "2026-12-20");
 });
 
@@ -90,4 +90,14 @@ test("milheiro e mesada", () => {
   assert.equal(N.milheiro(300, 40, 20000).veredito, "dinheiro");
   const m = N.mesada({ config: { mesadaSemanal: 350 }, gastosSemana: [{ data: "2026-11-23", valor: 100 }, { data: "2026-11-16", valor: 999 }] }, [], "2026-11-25");
   assert.equal(m.ini, "2026-11-23"); assert.equal(m.resta, 250);
+});
+
+test("meu número mínimo: fichas e plantões que faltam para o essencial e para o orçamento", () => {
+  const P = { escala: ["2026-11-02", "2026-11-05", "2026-11-09", "2026-12-01"].map((d, i) => ({ data: d, turno: "N", local: "h" })), contagem: { "2026-11-02N": { n: 20, uti: 0 }, "2026-11-05N": { n: 20, uti: 0 }, "2026-11-09N": { n: 20, uti: 0 }, "2026-12-01N": { n: 10, uti: 0 } }, locais: { h: { tipo: "porAlta", porAlta: 50, porUti: 150 } } };
+  const e = { config: { diaSalario: 20 }, plantaoCache: { plantoes: P }, rendas: [], orcamentos: { "2027-01": { itens: [{ n: "Mercado", g: "vida", v: 900 }, { n: "Total Pass", g: "fix", v: 300 }, { n: "Salvador", g: "vida", v: 600 }, { n: "Reserva", g: "cx", v: 1000 }] } } };
+  const nm = N.numeroMinimo(e, "2026-12", "2026-12-05");
+  assert.equal(nm.ganho, 500);
+  assert.equal(nm.essencial.alvo, 1200); assert.equal(nm.essencial.falta, 700); assert.equal(nm.essencial.fichas, 14);
+  assert.equal(nm.ideal.alvo, 2800); assert.equal(nm.ideal.falta, 2300);
+  assert.equal(nm.ritmo.plantoes, 4); assert.equal(nm.essencial.plantoes, 1); // média 875 por plantão
 });

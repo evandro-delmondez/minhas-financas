@@ -234,16 +234,16 @@ function alertas({ tx, cfg, hoje }) {
   const doMes = (m) => tx.filter((t) => t.comp === m);
   const desde = cfg.regraDesde || "2026-11-21";
   const tik = tx.filter((t) => t.data >= somaDias(hoje, -45) && /tiktok/i.test(t.desc) && t.valor > 0);
-  if (tik.length) out.push({ n: "bad", t: `TikTok Shop de novo: ${tik.length} compra${tik.length > 1 ? "s" : ""} nos últimos 45 dias (${brl(tik.reduce((a, t) => a + t.valor, 0))})`, d: "A regra é: app desinstalado e cartão removido." });
+  if (tik.length) out.push({ n: "warn", t: `TikTok Shop: ${tik.length} compra${tik.length > 1 ? "s" : ""} nos últimos 45 dias (${brl(tik.reduce((a, t) => a + t.valor, 0))})`, d: "Vale perguntar se cada uma era mesmo vontade sua ou impulso de feed. Somadas, viram uma passagem para Salvador." });
   for (const m of [mesAt, mesAnt]) {
     const ts = doMes(m); if (!ts.length) continue;
     const del = ts.filter((t) => t.cat === "delivery").reduce((a, t) => a + t.valor, 0);
-    if (del > (cfg.tetoDelivery || 200)) out.push({ n: "warn", t: `Delivery em ${nomeMes(m, true)}: ${brl(del)}`, d: `Teto combinado: ${brl(cfg.tetoDelivery || 200)}.` });
+    if (del > (cfg.tetoDelivery || 200)) out.push({ n: "warn", t: `Delivery em ${nomeMes(m, true)}: ${brl(del)}`, d: `A referência que você definiu é ${brl(cfg.tetoDelivery || 200)}. Se foi escolha, tudo bem: dá para compensar em outra parte do mês.` });
     const onl = ts.filter((t) => t.cat === "online").reduce((a, t) => a + t.valor, 0);
-    if (onl > (cfg.tetoOnline || 200)) out.push({ n: "warn", t: `Compras online em ${nomeMes(m, true)}: ${brl(onl)}`, d: `Teto combinado: ${brl(cfg.tetoOnline || 200)} e espera de 48 horas.` });
+    if (onl > (cfg.tetoOnline || 200)) out.push({ n: "warn", t: `Compras online em ${nomeMes(m, true)}: ${brl(onl)}`, d: `A referência é ${brl(cfg.tetoOnline || 200)}. Esperar 48 horas antes de comprar ajuda a separar vontade de impulso.` });
   }
   const novas = tx.filter((t) => t.parc && t.parc.k === 1 && t.data >= desde && t.valor > 0);
-  if (novas.length) out.push({ n: "bad", t: `Parcelamento novo: ${novas.map((t) => `${t.desc.replace(/\s*-?\s*parcela.*$/i, "")} (${t.parc.n}x ${brl(t.valor)})`).join(", ")}`, d: "Regra 1: zero parcelamento novo até as parcelas antigas acabarem." });
+  if (novas.length) out.push({ n: "warn", t: `Parcelamento novo: ${novas.map((t) => `${t.desc.replace(/\s*-?\s*parcela.*$/i, "")} (${t.parc.n}x ${brl(t.valor)})`).join(", ")}`, d: "Tudo bem parcelar quando cabe. O consultor mostra onde essa parcela entra nas próximas faturas e o que ajustar." });
   const che = tx.filter((t) => t.origem === "bb-conta" && t.data >= somaDias(hoje, -60) && /juros|iof|cheque especial|limite/i.test(semAcento(t.desc)) && t.valor > 0);
   if (che.length) out.push({ n: "bad", t: `Cheque especial no BB: ${brl(che.reduce((a, t) => a + t.valor, 0))} de juros e IOF nos últimos 60 dias`, d: "Mantenha a conta do BB no positivo ou encerre." });
   const sms = tx.filter((t) => t.data >= somaDias(hoje, -45) && /\bsms\b/i.test(semAcento(t.desc)) && t.valor > 0);
@@ -283,10 +283,9 @@ function plantoesDoMes(P, ym, est = EST_PADRAO, hojeIso) {
       const v = (c.n || 0) * (+loc.porAlta || 50) + (c.uti || 0) * (+loc.porUti || 150);
       return { data: x.data, rot, local: nomeLocal, min: v, max: v, status: "contado", n: c.n || 0, uti: c.uti || 0 };
     }
-    if (x.sobre) return { data: x.data, rot, local: nomeLocal, min: passou ? 0 : est.sobreMin || 0, max: passou ? 0 : est.sobreMax || 0, status: passou ? "sem chamado" : "sobreaviso" };
-    // sem contagem ainda: não é dinheiro garantido. Entra só no "pode chegar a" (máximo), não no confirmado.
-    const e = +est[turno] || 0;
-    return { data: x.data, rot, local: nomeLocal, min: 0, max: e, status: passou ? "sem contagem" : "previsto" };
+    // sem fichas contadas ainda: não é dinheiro. Paga R$ por ficha e por UTI, então não existe valor a estimar.
+    if (x.sobre) return { data: x.data, rot, local: nomeLocal, min: 0, max: 0, status: passou ? "sem chamado" : "sobreaviso" };
+    return { data: x.data, rot, local: nomeLocal, min: 0, max: 0, status: passou ? "sem fichas" : "marcado" };
   }).filter(Boolean).sort((a, b) => a.data.localeCompare(b.data));
 }
 // renda do mês trabalhado ym (recebida em diaSalario de ym+1)
@@ -314,6 +313,28 @@ function orcamentoDe(estado, ym) {
   const ant = Object.keys(O).filter((k) => k < ym).sort().pop();
   const base = ant ? O[ant] : { itens: estado.modeloItens || [] };
   return { renda: null, itens: base.itens.filter((i) => !i.ate || i.ate >= ym).filter((i) => !i.so || i.so === ym).map((i) => Object.assign({}, i)), novo: true };
+}
+
+// ---------- essencial × pausável e meu número mínimo ----------
+const ESSENCIAL_RE = /mentoria|agua|luz|diarista|combust|manutenc|total ?pass|claude|whitebook|barbe|mensalidade|mercado|farmac|saude|prova|inscri/;
+const ehEssencial = (i) => (i.ess != null ? !!i.ess : i.g !== "cx" && ESSENCIAL_RE.test(semAcento(i.n)));
+function totaisEss(o) { const t = { ess: 0, pausavel: 0 }; for (const i of (o && o.itens) || []) t[ehEssencial(i) ? "ess" : "pausavel"] += +i.v || 0; return t; }
+// ritmo: média por plantão com fichas contadas nos últimos 90 dias (sem sobreaviso)
+function ritmo(estado, hojeIso) {
+  const P = estado.plantaoCache && estado.plantaoCache.plantoes; if (!P) return null;
+  const ini = somaDias(hojeIso, -90), ms = new Set(); for (let d = ini; d.slice(0, 7) <= hojeIso.slice(0, 7); d = somaDias(dataNoMes(d.slice(0, 7), 1), 32)) ms.add(d.slice(0, 7));
+  const pl = [...ms].flatMap((m) => plantoesDoMes(P, m, EST_PADRAO, hojeIso)).filter((p) => p.status === "contado" && p.data >= ini && !/^sobreaviso/i.test(p.rot));
+  if (pl.length < 3) return null;
+  const v = pl.reduce((a, p) => a + p.min, 0), f = pl.reduce((a, p) => a + (p.n || 0) + (p.uti || 0), 0);
+  return { plantoes: pl.length, mediaValor: v / pl.length, mediaFichas: f / pl.length };
+}
+// quanto preciso ganhar nos plantões de ymTrab (pagos em ymTrab+1) para cobrir o essencial e o orçamento inteiro
+function numeroMinimo(estado, ymTrab, hojeIso) {
+  const ymPag = somaMes(ymTrab, 1), o = orcamentoDe(estado, ymPag), te = totaisEss(o), ideal = totaisOrc(o).total;
+  const r = rendaDoMes(estado, ymTrab, hojeIso), ganho = r.min, rt = ritmo(estado, hojeIso), valorFicha = 50;
+  const falta = (alvo) => Math.max(0, alvo - ganho);
+  const conta = (alvo) => ({ alvo, falta: falta(alvo), fichas: Math.ceil(falta(alvo) / valorFicha), plantoes: rt && rt.mediaValor ? Math.ceil(falta(alvo) / rt.mediaValor) : null });
+  return { ymTrab, ymPag, recebe: r.recebe, ganho, marcados: r.plantoes.filter((p) => p.status === "marcado" || p.status === "sobreaviso").length, essencial: conta(te.ess), ideal: conta(ideal), ritmo: rt };
 }
 
 // ---------- caixinhas e meta ----------
@@ -439,4 +460,4 @@ function juntaEstado(loc, rem) {
   return r;
 }
 
-if (typeof module !== "undefined") module.exports = { numero, lerCSV, importarCSV, categorizar, catDe, CATS, raioX, escadaParcelas, recorrentes, alertas, plantoesDoMes, rendaDoMes, totaisOrc, orcamentoDe, saldoCx, aportePrevisto, projetaMeta, suavizador, mesada, eventos, milheiro, juntaTx, juntaEstado, somaMes, segundaDe, parcelaDe, dataNoMes, EST_PADRAO };
+if (typeof module !== "undefined") module.exports = { numeroMinimo, ritmo, ehEssencial, totaisEss, numero, lerCSV, importarCSV, categorizar, catDe, CATS, raioX, escadaParcelas, recorrentes, alertas, plantoesDoMes, rendaDoMes, totaisOrc, orcamentoDe, saldoCx, aportePrevisto, projetaMeta, suavizador, mesada, eventos, milheiro, juntaTx, juntaEstado, somaMes, segundaDe, parcelaDe, dataNoMes, EST_PADRAO };

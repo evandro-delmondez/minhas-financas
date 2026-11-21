@@ -354,6 +354,30 @@ function numeroMinimo(estado, ymTrab, hojeIso) {
   return { ymTrab, ymPag, recebe: r.recebe, ganho, marcados: r.plantoes.filter((p) => p.status === "marcado" || p.status === "sobreaviso").length, essencial: conta(te.ess), ideal: conta(ideal), ritmo: rt };
 }
 
+// ---------- conferência do orçamento com os extratos ----------
+// fixo: vale a última cobrança; variável (água, luz, combustível, mercado...): a média dos últimos meses
+const APELIDOS = [[/^agua/, ["caesb", "saneamento"]], [/^luz/, ["neoenergia", "energiaeletrica"]], [/claude/, ["anthropic"]], [/apple/, ["applecom", "apple.com"]], [/total ?pass/, ["totalpass"]], [/combust/, ["posto", "combust", "shell", "ipiranga", "petrobras"]], [/mentoria|ipm/, ["ipm"]]];
+const VARIAVEL = /agua|luz|combust|mercado|farmac|saude|restaur|delivery|saida|compras|barbe/;
+const compacto = (x) => semAcento(x).replace(/[^a-z0-9.]/g, "");
+function confereOrcamento(itens, tx, hojeIso) {
+  const desde = somaDias(hojeIso, -120), out = [];
+  const recentes = tx.filter((t) => t.valor > 0 && t.data >= desde && !/\biof\b/i.test(semAcento(t.desc)) && t.cat !== "ignorar");
+  for (const i of itens || []) {
+    if (i.g === "cx" || !(+i.v > 0)) continue;
+    const nome = semAcento(i.n), ap = APELIDOS.find(([re]) => re.test(nome));
+    const chaves = ap ? ap[1] : nome.split(/\s+/).filter((w) => w.length >= 5 && !/^(conta|contas|plano|mensal|pessoal)$/.test(w)).slice(0, 2).map(compacto);
+    if (!chaves.length) continue;
+    const achados = recentes.filter((t) => { const d = compacto(t.desc); return chaves.some((k) => d.includes(compacto(k))) && !t.parc; });
+    const porMes = {}; for (const t of achados) porMes[t.data.slice(0, 7)] = (porMes[t.data.slice(0, 7)] || 0) + t.valor;
+    const meses = Object.keys(porMes).sort(); if (meses.length < 2) continue;
+    const variavel = VARIAVEL.test(nome);
+    const ult = meses.slice(-3), sug = variavel ? Math.round(ult.reduce((a, m) => a + porMes[m], 0) / ult.length) : Math.round(porMes[meses[meses.length - 1]] * 100) / 100;
+    const dif = Math.abs(sug - +i.v);
+    if (dif >= (variavel ? Math.max(10, +i.v * 0.1) : 0.05)) out.push({ id: i.id, n: i.n, atual: +i.v, sugerido: sug, variavel, base: variavel ? `média de ${ult.map((m) => nomeMes(m, true)).join(", ")}: ${ult.map((m) => brl(porMes[m])).join(" · ")}` : `última cobrança: ${brl2(porMes[meses[meses.length - 1]])} em ${nomeMes(meses[meses.length - 1], true)}` });
+  }
+  return out;
+}
+
 // ---------- caixinhas e meta ----------
 const saldoCx = (estado, id, ate) => (estado.movimentos || []).filter((m) => m.cx === id && (!ate || m.data <= ate)).reduce((a, m) => a + (+m.valor || 0), 0);
 // aporte previsto de cada caixinha no mês ym: o do orçamento do mês (se existe) ou o aporte padrão (a partir de aporteDesde)
@@ -477,4 +501,4 @@ function juntaEstado(loc, rem) {
   return r;
 }
 
-if (typeof module !== "undefined") module.exports = { importarOFX, numeroMinimo, ritmo, ehEssencial, totaisEss, numero, lerCSV, importarCSV, categorizar, catDe, CATS, raioX, escadaParcelas, recorrentes, alertas, plantoesDoMes, rendaDoMes, totaisOrc, orcamentoDe, saldoCx, aportePrevisto, projetaMeta, suavizador, mesada, eventos, milheiro, juntaTx, juntaEstado, somaMes, segundaDe, parcelaDe, dataNoMes, EST_PADRAO };
+if (typeof module !== "undefined") module.exports = { confereOrcamento, importarOFX, numeroMinimo, ritmo, ehEssencial, totaisEss, numero, lerCSV, importarCSV, categorizar, catDe, CATS, raioX, escadaParcelas, recorrentes, alertas, plantoesDoMes, rendaDoMes, totaisOrc, orcamentoDe, saldoCx, aportePrevisto, projetaMeta, suavizador, mesada, eventos, milheiro, juntaTx, juntaEstado, somaMes, segundaDe, parcelaDe, dataNoMes, EST_PADRAO };

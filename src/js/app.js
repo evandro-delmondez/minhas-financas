@@ -322,6 +322,7 @@ function telaOrcamento(el, h) {
       <span class="pilha" style="margin-top:12px;background:rgba(255,255,255,.2)">${Object.keys(GRUPOS).map((g) => `<i style="--w:${(t[g] / base) * 100}%;--c:${g === "fix" ? "#FFFFFF" : g === "vida" ? "rgba(255,255,255,.7)" : "rgba(255,255,255,.45)"}"></i>`).join("")}</span>
       <div class="pils">${Object.entries(GRUPOS).map(([g, G]) => `<span class="pil">${G.n}<b class="num">${brl(t[g])}</b></span>`).join("")}<span class="pil">Essencial<b class="num">${brl(totaisEss(o).ess)}</b></span></div>
     </section>
+    ${(() => { const cf = confereOrcamento(o.itens, todasTx(), h); return cf.length ? `<button class="aviso" id="oConf" type="button" style="--c:var(--mar1);text-align:left;width:100%"><span class="ico">🔎</span><div><b>Conferi com os seus extratos: ${cf.length} ${cf.length === 1 ? "valor diferente" : "valores diferentes"}</b><br><small>${cf.slice(0, 3).map((c) => esc(c.n)).join(", ")}${cf.length > 3 ? "…" : ""} · toque para ver e ajustar</small></div></button>` : ""; })()}
     <button class="btn" id="oIA" type="button">✨ Montar o plano com o consultor</button>
     ${o.novo ? `<div class="aviso" style="--c:var(--mar1)"><span class="ico">📝</span><div><b>Mês ainda não montado</b><br><small>Mostrando a base do mês anterior. Ao mudar qualquer coisa, vira o orçamento de ${mesNome(ym)}.</small></div></div>` : ""}
     <section class="bloco"><div class="tit">Renda</div><div class="grupo">${li({ em: "💵", cor: "mar2", t: "Renda do mês", s: `previsão dos plantões de ${mesNome(r.ym)}: ${r.max ? faixa(r.min, r.max) : "nenhum"}`, v: brl(renda), chev: true, attrs: 'data-renda="1"' })}</div></section>
@@ -343,6 +344,7 @@ function telaOrcamento(el, h) {
   }, "Salvar");
   $$("[data-item]", el).forEach((b) => (b.onclick = () => folhaItem(ym, b.dataset.item)));
   $("#oIA", el).onclick = () => folhaPlanoIA(ym);
+  const oc = $("#oConf", el); if (oc) oc.onclick = () => folhaConfere(ym, h);
   $$("[data-novo]", el).forEach((b) => (b.onclick = () => folhaItem(ym, null, b.dataset.novo)));
   const dist = $("#oDistr", el);
   if (dist) dist.onclick = () => {
@@ -355,6 +357,17 @@ function telaOrcamento(el, h) {
   };
   const des = $("#oDesfaz", el); if (des) des.onclick = () => { const O = garanteOrc(ym); estado.movimentos.filter((m) => m.orc === ym).forEach((m) => apaga("movimentos", m.id)); delete O.distribuido; salva(); redesenha(); };
   $("#oModelo", el).onclick = () => { estado.modeloItens = o.itens.filter((i) => !i.so).map((i) => Object.assign({}, i)); salva(); toast("Os meses ainda não montados partem deste"); };
+}
+function folhaConfere(ym, h) {
+  const cf = confereOrcamento(orcamentoDe(estado, ym).itens, todasTx(), h);
+  abreFolha("Conferência com os extratos", `<p class="rod">Comparei cada item do orçamento com o que saiu de verdade nos seus extratos. Fixos: vale a última cobrança. Variáveis (água, luz, combustível, mercado): a média dos últimos meses. Marque o que quer ajustar.</p>
+    <div class="grupo">${cf.map((c, i) => `<label class="li"><span class="ico" style="--c:var(--mar1)">${emoItem({ n: c.n, g: "fix" })}</span><span class="t"><span>${esc(c.n)}: ${brl2(c.atual)} → <b>${brl2(c.sugerido)}</b></span><small>${esc(c.base)}</small></span><input type="checkbox" class="troca" data-cf="${i}" checked></label>`).join("")}</div>`, (f) => {
+    $("#folhaDir").onclick = () => {
+      const O = garanteOrc(ym); let n = 0;
+      cf.forEach((c, i) => { if ($(`[data-cf="${i}"]`, f).checked) { const it = O.itens.find((x) => x.id === c.id); if (it) { it.v = c.sugerido; n++; } } });
+      salva(); fechaFolha(); animar = true; redesenha(); toast(n ? `${n} ${n === 1 ? "valor ajustado" : "valores ajustados"} com os extratos` : "Nada ajustado");
+    };
+  }, "Ajustar");
 }
 function folhaItem(ym, id, grupoNovo) {
   const o = orcamentoDe(estado, ym), i = id ? o.itens.find((x) => x.id === id) : { n: "", g: grupoNovo, v: "", p: "" };
@@ -793,5 +806,19 @@ async function inicia() {
   if (!estado) { telaBoasVindas(); desenhaAbas(); mostraSelo(); } else { animar = !$("#corpo .tela"); redesenha(); }
   // site instalado com GitHub: atualiza os plantões ao abrir
   if (estado && nuvem.modo === "github" && gh.chave && (!estado.plantaoCache || Date.now() - estado.plantaoCache.em > 30 * 60e3)) lePlantoesGitHub().then((P) => { estado.plantaoCache = { em: Date.now(), plantoes: P }; salva(); redesenha(); }).catch(() => {});
-  if ("serviceWorker" in navigator && location.protocol === "https:" && window.MF_SITE) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && location.protocol === "https:" && window.MF_SITE) navigator.serviceWorker.register("sw.js").then((r) => r.update()).catch(() => {});
+  checaVersao(true);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checaVersao(false); });
+}
+// site instalado: confere se há versão nova publicada. Ao abrir, atualiza sozinho; ao voltar para o app, oferece.
+const versaoN = (v) => String(v || "0").split(".").map((x) => +x || 0).reduce((a, x) => a * 1000 + x, 0);
+async function checaVersao(aoAbrir) {
+  if (!window.MF_SITE || !navigator.onLine) return;
+  try {
+    const txt = await (await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" })).text();
+    const m = /APP_VERSION="([\d.]+)"/.exec(txt); if (!m || versaoN(m[1]) <= versaoN(APP_VERSION)) return;
+    const vai = () => location.replace(location.pathname + "?atualizado=" + m[1] + location.hash);
+    if (aoAbrir && $("#folha").hidden && !(pend.est || (pend.tx || []).length)) vai();
+    else toast(`Versão nova (${m[1]}) disponível`, { rot: "Atualizar", fn: () => { sincroniza(); setTimeout(vai, 600); } });
+  } catch (e) {}
 }

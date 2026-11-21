@@ -111,3 +111,12 @@ test("OFX: conta e cartão, com parcela e mês da fatura pelo nome do arquivo", 
   const c = N.importarOFX(cartao, "Nubank_2026-12-28.ofx");
   assert.equal(c.origem, "nu-fatura"); assert.equal(c.itens[0].comp, "2026-12"); assert.deepEqual(c.itens[0].parc, { k: 6, n: 12 });
 });
+
+test("conferência: fixo pela última cobrança, variável pela média, IOF e parcela fora", () => {
+  const tx = [["2026-09-03", "Totalpass", 299.9], ["2026-10-03", "Totalpass", 299.9], ["2026-11-03", "Totalpass", 299.9], ["2026-11-07", "IOF de Totalpass", 4],
+    ["2026-09-10", "Pagamento Fatura de Água · CAESB", 83.44], ["2026-10-13", "Pagamento Fatura de Água · CAESB", 104.04], ["2026-11-10", "Pagamento Fatura de Água · CAESB", 226.92],
+    ["2026-10-26", "Ig*Whitebook", 59.9], ["2026-11-26", "Ig*Whitebook", 59.9]].map(([data, desc, valor]) => ({ data, desc, valor, cat: "assinatura" }));
+  const itens = [{ id: "a", n: "Total Pass", g: "fix", v: 300 }, { id: "b", n: "Água", g: "fix", v: 150 }, { id: "c", n: "Whitebook", g: "fix", v: 59.9 }, { id: "d", n: "Reserva", g: "cx", v: 1000 }];
+  const cf = N.confereOrcamento(itens, tx, "2026-11-21");
+  assert.deepEqual(cf.map((c) => [c.id, c.sugerido]), [["a", 299.9]]); // água: média 138 contra 150 fica dentro da margem de 10% das contas variáveis
+});

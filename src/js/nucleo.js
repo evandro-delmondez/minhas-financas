@@ -365,6 +365,8 @@ function confereOrcamento(itens, tx, hojeIso) {
   for (const i of itens || []) {
     if (i.g === "cx" || !(+i.v > 0)) continue;
     const nome = semAcento(i.n), ap = APELIDOS.find(([re]) => re.test(nome));
+    // categorias amplas (mercado, saídas, compras, farmácia...) não têm um nome único no extrato: ficam de fora
+    if (VARIAVEL.test(nome) && !ap) continue;
     const chaves = ap ? ap[1] : nome.split(/\s+/).filter((w) => w.length >= 5 && !/^(conta|contas|plano|mensal|pessoal)$/.test(w)).slice(0, 2).map(compacto);
     if (!chaves.length) continue;
     const achados = recentes.filter((t) => { const d = compacto(t.desc); return chaves.some((k) => d.includes(compacto(k))) && !t.parc; });

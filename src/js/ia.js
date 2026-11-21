@@ -28,7 +28,8 @@ Formato:
  "acoes": [ ... ]}
 
 Tipos de ação (use só estes, com estes campos):
-- {"tipo":"lancamento","data":"AAAA-MM-DD","desc":"texto do extrato","valor":123.45,"cat":"<chave de categorias>","origem":"nu-fatura|nu-conta|bb-conta|outro","fatura":"AAAA-MM (só para fatura de cartão: mês do vencimento)","parcela":"k/n (se houver)"} → uma linha de extrato ou fatura. valor positivo = gasto/saída; negativo = entrada/estorno. Liste TODAS as linhas do documento, uma ação por linha. Pagamento de fatura, transferência entre contas do próprio usuário, aplicação/resgate de caixinha e valores da fazenda: cat "ignorar".
+- Comprovante de Pix: um lançamento por comprovante, origem "nu-conta" (ou "bb-conta" se for do BB).
+- {"tipo":"lancamento","data":"AAAA-MM-DD","desc":"texto do extrato","valor":123.45,"cat":"<chave de categorias>","origem":"nu-fatura|nu-conta|bb-conta|bb-fatura|outro","fatura":"AAAA-MM (só para fatura de cartão: mês do vencimento)","parcela":"k/n (se houver)"} → uma linha de extrato ou fatura. valor positivo = gasto/saída; negativo = entrada/estorno. Liste TODAS as linhas do documento, uma ação por linha. Pagamento de fatura, transferência entre contas do próprio usuário, aplicação/resgate de caixinha e valores da fazenda: cat "ignorar".
 - {"tipo":"gasto_mesada","data":"AAAA-MM-DD","valor":50,"desc":"bar"} → gasto avulso do dia a dia que ele conta em frase ("gastei 50 no bar").
 - {"tipo":"renda","ref":"AAAA-MM (mês em que o trabalho foi feito)","desc":"Remoção VipMed","min":250,"max":250,"tipoRenda":"extra|plantao"} → renda que vai receber ou recebeu (plantão fora do Meu Plantão, remoção, UTI móvel).
 - {"tipo":"caixinha","cx":"<id de caixinhas>","valor":500,"desc":"..."} → guardou (valor positivo) ou tirou (negativo) de uma caixinha.
@@ -216,8 +217,8 @@ function rolaChat() { setTimeout(() => { const c = $("#conversa"); if (c && c.la
 
 // ---------- tela do assistente ----------
 let iaAnexos = [];
-function abreAssistente() {
-  iaAnexos = [];
+function abreAssistente(arquivos, textoInicial) {
+  iaAnexos = (Array.isArray(arquivos) ? arquivos : []).map((a) => ({ f: a, tipo: /\.csv$/i.test(a.name) ? "csv" : /\.pdf$/i.test(a.name) || a.type === "application/pdf" ? "pdf" : /^image\//.test(a.type) ? "img" : "txt" }));
   const modo = iaModo();
   abreFolha("✨ Assistente", `
     <section class="hero areia"><span class="k">Mande o que tiver</span><span class="v" style="font-size:22px">Extrato, fatura, foto, print ou uma frase</span><span class="s">Ela lê, soma, categoriza e propõe os lançamentos. Você confere antes de entrar.</span></section>
@@ -233,6 +234,7 @@ Prova da UNIFESP dia 12/12, inscrição até 30/11"></textarea></label>
     <div id="iaRes"></div>`, (f) => {
     const cfg = $("#iaCfg", f); if (cfg) cfg.onclick = () => { fechaFolha(); setTimeout(folhaIaCfg, 300); };
     $("#iaGasto", f).onclick = () => { fechaFolha(); setTimeout(folhaGasto, 300); };
+    if (iaAnexos.length) setTimeout(() => { lista(); if (textoInicial) $("#iaTxt", f).value = textoInicial; if (iaModo()) $("#iaVai", f).click(); }, 50);
     $("#iaChat", f).onclick = () => { fechaFolha(); vaiPara("consultor"); };
     const lista = () => { $("#iaLista", f).innerHTML = iaAnexos.map((a, i) => li({ em: { img: "🖼️", pdf: "📄", csv: "📊", txt: "📝" }[a.tipo], cor: "mar6", t: esc(a.f.name), s: a.tipo === "csv" ? "lido pelo app, sem IA" : `${Math.round(a.f.size / 1024)} KB`, v: "✕", vcls: "sec", attrs: `data-tiraanexo="${i}"` })).join(""); $$("[data-tiraanexo]", f).forEach((b) => (b.onclick = () => { iaAnexos.splice(+b.dataset.tiraanexo, 1); lista(); })); };
     $("#iaArq", f).onchange = (e) => {
@@ -303,8 +305,8 @@ function aplicaAcoes(lancs, acoes) {
   const h = hoje(), mudou = new Set(); let n = 0;
   for (const a of lancs) {
     const data = /^\d{4}-\d\d-\d\d$/.test(a.data) ? a.data : h, valor = Math.round(+a.valor * 100) / 100, desc = String(a.desc || "").slice(0, 140);
-    const origem = ["nu-fatura", "nu-conta", "bb-conta"].includes(a.origem) ? a.origem : "ia";
-    const comp = origem === "nu-fatura" && /^\d{4}-\d\d$/.test(a.fatura || "") ? a.fatura : mesDe(data);
+    const origem = ["nu-fatura", "nu-conta", "bb-conta", "bb-fatura"].includes(a.origem) ? a.origem : "ia";
+    const comp = /fatura/.test(origem) && /^\d{4}-\d\d$/.test(a.fatura || "") ? a.fatura : mesDe(data);
     const parc = /^(\d+)\/(\d+)$/.test(a.parcela || "") ? { k: +a.parcela.split("/")[0], n: +a.parcela.split("/")[1] } : parcelaDe(desc);
     const t = { id: "ia" + hash(`${origem}|${data}|${desc}|${valor.toFixed(2)}`), data, desc, valor, origem, comp, parc, em: Date.now() };
     const lista = (txs[comp] = txs[comp] || []);

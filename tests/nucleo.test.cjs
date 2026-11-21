@@ -101,3 +101,13 @@ test("meu número mínimo: fichas e plantões que faltam para o essencial e para
   assert.equal(nm.ideal.alvo, 2800); assert.equal(nm.ideal.falta, 2300);
   assert.equal(nm.ritmo.plantoes, 4); assert.equal(nm.essencial.plantoes, 1); // média 875 por plantão
 });
+
+test("OFX: conta e cartão, com parcela e mês da fatura pelo nome do arquivo", () => {
+  const conta = "<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKACCTFROM><BANKID>0260</BANKID></BANKACCTFROM><BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261103000000[-3:BRT]<TRNAMT>-35.50<FITID>abc1<MEMO>Compra no débito - BAR DO ZE</STMTTRN><STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20261120<TRNAMT>5000.00<FITID>abc2<MEMO>Transferência recebida - SANTA LUCIA</STMTTRN></BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>";
+  const r = N.importarOFX(conta, "extrato.ofx");
+  assert.equal(r.origem, "nu-conta"); assert.equal(r.itens.length, 2);
+  assert.equal(r.itens[0].data, "2026-11-03"); assert.equal(r.itens[0].valor, 35.5); assert.equal(r.itens[1].valor, -5000);
+  const cartao = "<OFX><CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS><BANKTRANLIST><STMTTRN><DTPOSTED>20261120<TRNAMT>-132.50<FITID>x9<MEMO>Curem - Parcela 6/12</STMTTRN></BANKTRANLIST></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>";
+  const c = N.importarOFX(cartao, "Nubank_2026-12-28.ofx");
+  assert.equal(c.origem, "nu-fatura"); assert.equal(c.itens[0].comp, "2026-12"); assert.deepEqual(c.itens[0].parc, { k: 6, n: 12 });
+});

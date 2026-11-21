@@ -106,6 +106,23 @@ function importarCSV(texto, nomeArquivo = "") {
   return { origem, itens };
 }
 
+// OFX (Nubank e bancos em geral): <STMTTRN> com DTPOSTED, TRNAMT, MEMO/NAME e FITID
+function importarOFX(texto, nomeArquivo = "") {
+  const t = String(texto || ""), itens = [];
+  const cartao = /<CREDITCARDMSGSRSV1>|<CCSTMTRS>/i.test(t), banco = /<BANKID>\s*0*1\s*</i.test(t) ? "bb" : "nu";
+  const origem = cartao ? (banco === "bb" ? "bb-fatura" : "nu-fatura") : banco === "bb" ? "bb-conta" : "nu-conta";
+  const campo = (bloco, tag) => { const m = new RegExp(`<${tag}>([^<\\r\\n]*)`, "i").exec(bloco); return m ? m[1].trim() : ""; };
+  const fm = /(\d{4})-(\d{2})-(\d{2})/.exec(nomeArquivo);
+  for (const bloco of t.split(/<STMTTRN>/i).slice(1)) {
+    const d = campo(bloco, "DTPOSTED"), v = numero(campo(bloco, "TRNAMT")), desc = campo(bloco, "MEMO") || campo(bloco, "NAME"), id = campo(bloco, "FITID");
+    if (!/^\d{8}/.test(d) || !desc) continue;
+    const data = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+    const comp = cartao && fm ? `${fm[1]}-${fm[2]}` : mesDe(data);
+    itens.push({ id: "of" + hash(`${origem}|${id || data + desc + v}`), data, desc, valor: -v, origem, comp, parc: parcelaDe(desc) });
+  }
+  return itens.length ? { origem, itens } : { origem: null, itens: [], erro: "Não achei lançamentos neste OFX" };
+}
+
 // ---------- categorias ----------
 const CATS = {
   restaurante: { n: "Restaurantes e saídas", cor: "orange" },
@@ -184,7 +201,7 @@ function raioX(tx, opts = {}) {
     if (opts.desde && t.comp < opts.desde) continue;
     if (opts.ate && t.comp > opts.ate) continue;
     const m = t.comp; porMes[m] = porMes[m] || { total: 0, cartao: 0, fora: 0, cats: {} };
-    porMes[m].total += t.valor; porMes[m][t.origem === "nu-fatura" ? "cartao" : "fora"] += t.valor;
+    porMes[m].total += t.valor; porMes[m][/fatura/.test(t.origem || "") ? "cartao" : "fora"] += t.valor;
     porMes[m].cats[t.cat] = (porMes[m].cats[t.cat] || 0) + t.valor;
     porCat[t.cat] = (porCat[t.cat] || 0) + t.valor;
     (itensCat[t.cat] = itensCat[t.cat] || []).push(t);
@@ -197,7 +214,7 @@ function raioX(tx, opts = {}) {
 function escadaParcelas(tx, aPartirDe) {
   const ult = {};
   for (const t of tx) {
-    if (t.origem !== "nu-fatura" || !t.parc || t.valor <= 0) continue;
+    if (!/fatura/.test(t.origem || "") || !t.parc || t.valor <= 0) continue;
     const k = baseParcela(t.desc) + "|" + t.valor.toFixed(2) + "|" + t.parc.n;
     const comp0 = somaMes(t.comp, -(t.parc.k - 1)); // fatura da 1ª parcela
     const key = k + "|" + comp0;
@@ -460,4 +477,4 @@ function juntaEstado(loc, rem) {
   return r;
 }
 
-if (typeof module !== "undefined") module.exports = { numeroMinimo, ritmo, ehEssencial, totaisEss, numero, lerCSV, importarCSV, categorizar, catDe, CATS, raioX, escadaParcelas, recorrentes, alertas, plantoesDoMes, rendaDoMes, totaisOrc, orcamentoDe, saldoCx, aportePrevisto, projetaMeta, suavizador, mesada, eventos, milheiro, juntaTx, juntaEstado, somaMes, segundaDe, parcelaDe, dataNoMes, EST_PADRAO };
+if (typeof module !== "undefined") module.exports = { importarOFX, numeroMinimo, ritmo, ehEssencial, totaisEss, numero, lerCSV, importarCSV, categorizar, catDe, CATS, raioX, escadaParcelas, recorrentes, alertas, plantoesDoMes, rendaDoMes, totaisOrc, orcamentoDe, saldoCx, aportePrevisto, projetaMeta, suavizador, mesada, eventos, milheiro, juntaTx, juntaEstado, somaMes, segundaDe, parcelaDe, dataNoMes, EST_PADRAO };

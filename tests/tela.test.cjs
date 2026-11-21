@@ -86,6 +86,12 @@ test("telas", async (t) => {
         await p.click("#iaAplica");
         await p.waitForTimeout(1200);
         assert.match(await p.textContent("#corpo"), /R\$\s?270/); // mesada 350 − 80
+        // extratos: PDF vai sozinho para a IA, que propõe as linhas
+        await ir("extratos");
+        await p.setInputFiles("#arq", { name: "fatura-ourocard.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 teste") });
+        await p.waitForSelector("#iaAplica", { timeout: 8000 });
+        assert.match(await p.textContent("#folha"), /fatura-ourocard\.pdf/);
+        await p.click("#iaAplica"); await p.waitForTimeout(400);
         // conversa com o consultor: pergunta → resposta com proposta → lançar
         await ir("consultor");
         await p.fill("#chatTxt", "Posso comprar um iPad em 10x?"); await p.click("#chatForm button");

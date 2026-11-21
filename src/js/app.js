@@ -479,12 +479,12 @@ async function lerArquivo(f) { const buf = await f.arrayBuffer(); try { return n
 async function importaArquivos(files) {
   const rel = [], mudou = new Set();
   for (const f of files) {
-    if (!/\.csv$/i.test(f.name)) { rel.push({ ok: false, t: f.name, s: "não é CSV: mande pela IA (✨)" }); continue; }
-    const r = importarCSV(await lerArquivo(f), f.name);
+    if (!/\.(csv|ofx)$/i.test(f.name)) { rel.push({ ok: false, t: f.name, s: "vai para a IA" }); continue; }
+    const r = /\.ofx$/i.test(f.name) ? importarOFX(await lerArquivo(f), f.name) : importarCSV(await lerArquivo(f), f.name);
     if (!r.origem) { rel.push({ ok: false, t: f.name, s: r.erro }); continue; }
     let novas = 0;
     for (const t of r.itens) { const m = t.comp; txs[m] = txs[m] || []; if (!txs[m].some((x) => x.id === t.id)) { t.em = Date.now(); txs[m].push(t); novas++; mudou.add(m); } }
-    rel.push({ ok: true, t: f.name, s: `${novas} novas de ${r.itens.length} · ${{ "nu-fatura": "fatura Nubank", "nu-conta": "conta Nubank", "bb-conta": "conta BB" }[r.origem]}` });
+    rel.push({ ok: true, t: f.name, s: `${novas} novas de ${r.itens.length} · ${{ "nu-fatura": "fatura Nubank", "nu-conta": "conta Nubank", "bb-conta": "conta BB", "bb-fatura": "fatura Ourocard" }[r.origem]}` });
   }
   for (const m of mudou) txs[m].sort((a, b) => a.data.localeCompare(b.data));
   if (mudou.size) salva([...mudou]);
@@ -497,9 +497,9 @@ function telaExtratos(el, h) {
   const f = tx.filter((t) => (!ui.txMes || t.comp === ui.txMes) && (!ui.txCat || t.cat === ui.txCat) && (!ui.txBusca || semAcento(t.desc).includes(semAcento(ui.txBusca))));
   const gastos = f.filter((t) => t.valor > 0 && !CAT_FORA.has(t.cat)).reduce((a, t) => a + t.valor, 0);
   const porDia = {}; for (const t of f.slice(0, 250)) (porDia[t.data] = porDia[t.data] || []).push(t);
-  const orig = { "nu-fatura": "fatura", "nu-conta": "Nubank", "bb-conta": "BB", ia: "pela IA" };
+  const orig = { "nu-fatura": "fatura Nubank", "nu-conta": "Nubank", "bb-conta": "BB", "bb-fatura": "Ourocard", ia: "pela IA" };
   el.innerHTML = `<div class="tela">
-    <label class="hero areia" id="drop" style="cursor:pointer"><span class="k">Extrato do mês</span><span class="v" style="font-size:24px">📥 Anexar extratos</span><span class="s">CSV da fatura e da conta do Nubank e da conta do BB: o app lê na hora. PDF, foto ou print: mande pela IA (✨). O que já entrou não duplica.</span><input type="file" id="arq" accept=".csv,text/csv" multiple hidden></label>
+    <label class="hero areia" id="drop" style="cursor:pointer"><span class="k">Extrato do mês</span><span class="v" style="font-size:24px">📥 Anexar extratos</span><span class="s">Pode selecionar tudo de uma vez: CSV e OFX o app lê na hora; PDF (fatura do Ourocard), comprovantes de Pix, fotos e prints vão para a IA, e você confere antes de lançar. O que já entrou não duplica.</span><input type="file" id="arq" accept=".csv,.ofx,.pdf,.txt,text/csv,application/pdf,image/*" multiple hidden></label>
     ${relImport.length ? `<div class="grupo" id="rel">${relImport.map((r) => li({ em: r.ok ? "✅" : "⚠️", cor: r.ok ? "ok" : "warn", t: esc(r.t), s: esc(r.s) })).join("")}</div>` : ""}
     ${meses.length ? `<div class="chips"><button class="chip" data-fm="" aria-pressed="${!ui.txMes}" type="button">Todos</button>${meses.map((m) => `<button class="chip" data-fm="${m}" aria-pressed="${ui.txMes === m}" type="button">${nomeMes(m, true)}</button>`).join("")}</div>
     <div class="grupo">${campo("🔎", `<input id="fBusca" value="${esc(ui.txBusca || "")}" placeholder="Buscar (ex.: tiktok)" style="width:100%;text-align:left">`)}${campo("Categoria", `<select id="fCat"><option value="">Todas</option>${Object.entries(CATS).map(([k, c]) => `<option value="${k}" ${k === ui.txCat ? "selected" : ""}>${EMO_CAT[k]} ${c.n}</option>`).join("")}</select>`)}</div>
@@ -510,7 +510,12 @@ function telaExtratos(el, h) {
     <p class="rod">Ficam de fora das contas: pagamento de fatura, transferências entre suas contas, caixinhas e valores da fazenda.</p>
   </div>`;
   const arq = $("#arq", el), drop = $("#drop", el);
-  const vai = async (files) => { relImport = await importaArquivos([...files]); animar = true; redesenha(); };
+  const vai = async (files) => {
+    const todos = [...files], locais = todos.filter((f) => /\.(csv|ofx)$/i.test(f.name)), ia = todos.filter((f) => !/\.(csv|ofx)$/i.test(f.name));
+    relImport = locais.length ? await importaArquivos(locais) : [];
+    animar = true; redesenha();
+    if (ia.length) abreAssistente(ia, `Extratos, faturas e comprovantes anexados (${ia.map((f) => f.name).join(", ")}). Liste todas as linhas como lançamentos; fatura do Ourocard é origem "bb-fatura" com "fatura" = mês do vencimento.`);
+  };
   arq.onchange = () => vai(arq.files);
   drop.ondragover = (e) => { e.preventDefault(); drop.style.opacity = ".8"; };
   drop.ondragleave = () => (drop.style.opacity = "");

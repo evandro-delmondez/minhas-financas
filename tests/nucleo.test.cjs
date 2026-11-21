@@ -53,13 +53,14 @@ test("escada de parcelas projeta as que faltam", () => {
   assert.equal(e.compras[0].fim, "2027-06");
 });
 
-test("Meu Plantão: contagem vira valor, futuro usa estimativa, sobreaviso é faixa", () => {
+test("Meu Plantão: só o contado é confirmado; previsto e sobreaviso entram no máximo", () => {
   const P = { escala: [{ data: "2026-11-03", turno: "N", local: "hsls" }, { data: "2026-11-28", turno: "D", local: "hsls" }, { data: "2026-11-29", turno: "N", local: "hsls", sobre: true }],
     contagem: { "2026-11-03N": { n: 18, uti: 1 } }, locais: { hsls: { nome: "Santa Lúcia", tipo: "porAlta", porAlta: 50, porUti: 150 } }, pagos: {} };
   const pl = N.plantoesDoMes(P, "2026-11", N.EST_PADRAO, "2026-11-21");
-  assert.deepEqual(pl.map((p) => [p.status, p.min, p.max]), [["contado", 1050, 1050], ["previsto", 1000, 1000], ["sobreaviso", 0, 600]]);
+  assert.deepEqual(pl.map((p) => [p.status, p.min, p.max]), [["contado", 1050, 1050], ["previsto", 0, 1000], ["sobreaviso", 0, 600]]);
   const r = N.rendaDoMes({ plantaoCache: { plantoes: P }, rendas: [{ ref: "2026-11", tipo: "plantao", min: 999 }, { ref: "2026-11", tipo: "extra", min: 250 }], config: {} }, "2026-11", "2026-11-21");
-  assert.equal(r.min, 1050 + 1000 + 250); // plantão manual sai quando há escala; extra fica
+  assert.equal(r.min, 1050 + 250); // confirmado: só o contado e o extra; o manual sai quando há escala
+  assert.equal(r.max, 1050 + 1000 + 600 + 250); // pode chegar a: com a estimativa do previsto e do sobreaviso
   assert.equal(r.recebe, "2026-12-20");
 });
 

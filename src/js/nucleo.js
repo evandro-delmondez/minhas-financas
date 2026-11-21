@@ -284,8 +284,9 @@ function plantoesDoMes(P, ym, est = EST_PADRAO, hojeIso) {
       return { data: x.data, rot, local: nomeLocal, min: v, max: v, status: "contado", n: c.n || 0, uti: c.uti || 0 };
     }
     if (x.sobre) return { data: x.data, rot, local: nomeLocal, min: passou ? 0 : est.sobreMin || 0, max: passou ? 0 : est.sobreMax || 0, status: passou ? "sem chamado" : "sobreaviso" };
+    // sem contagem ainda: não é dinheiro garantido. Entra só no "pode chegar a" (máximo), não no confirmado.
     const e = +est[turno] || 0;
-    return { data: x.data, rot, local: nomeLocal, min: e, max: e, status: passou ? "sem contagem" : "previsto" };
+    return { data: x.data, rot, local: nomeLocal, min: 0, max: e, status: passou ? "sem contagem" : "previsto" };
   }).filter(Boolean).sort((a, b) => a.data.localeCompare(b.data));
 }
 // renda do mês trabalhado ym (recebida em diaSalario de ym+1)

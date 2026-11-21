@@ -502,7 +502,7 @@ function telaRenda(el, h) {
       ${li({ em: "🩺", cor: "mar1", t: pc ? `${pc.plantoes.escala.length} plantões lidos` : "Ainda não ligado", s: pc ? `atualizado ${new Date(pc.em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "a renda vem dos lançamentos abaixo" })}
       ${gh.chave ? `<button class="li add" id="plGh" type="button"><span class="ico">↻</span><span class="t">Ler do GitHub agora</span></button>` : ""}
       <button class="li add" id="plCola" type="button"><span class="ico">📋</span><span class="t">Colar o backup do Meu Plantão</span></button></div>
-      <p class="rod">R$ 50 por paciente e R$ 150 por UTI (pelo valor de cada local). Plantão sem contagem entra pela estimativa do turno; o dinheiro cai no dia ${cfg.diaSalario} do mês seguinte.</p></section>
+      <p class="rod">R$ 50 por paciente e R$ 150 por UTI (pelo valor de cada local). O confirmado é só o que já tem contagem, igual ao Meu Plantão; plantão sem contagem aparece em "pode chegar a" pela estimativa do turno. O dinheiro cai no dia ${cfg.diaSalario} do mês seguinte.</p></section>
     ${meses.map((ym) => {
       const r = rendaDoMes(estado, ym, h);
       return `<section class="bloco"><div class="tit">Plantões de ${nomeMes(ym)}<b class="num">${r.max ? faixa(r.min, r.max) : "R$ 0"}</b></div><div class="grupo">
@@ -514,7 +514,7 @@ function telaRenda(el, h) {
     }).join("")}
     <section class="bloco"><div class="tit">Estimativa por turno</div><div class="grupo">
       ${[["D", "☀️ Diurno 12 h"], ["N", "🌙 Noturno 12 h"], ["M", "🌅 Matutino 6 h"], ["V", "🌇 Vespertino 6 h"], ["N1", "🌙 Noturno até 1h"], ["18A", "⏱️ 18 h"], ["24", "⏱️ 24 h"], ["sobreMin", "📟 Sobreaviso (mín.)"], ["sobreMax", "📟 Sobreaviso (máx.)"]].map(([k, n]) => campo(n, `<input data-est="${k}" inputmode="decimal" value="${vIn(est[k])}">`)).join("")}</div>
-      <p class="rod">Plantão cheio costuma dar R$ 950 a 1.250; meio, uns R$ 800. Sobreaviso só paga se chamarem.</p></section>
+      <p class="rod">Usada só no "pode chegar a", nunca no confirmado. Plantão cheio costuma dar R$ 950 a 1.250; meio, uns R$ 800. Sobreaviso só paga se chamarem.</p></section>
   </div>`;
   const aplica = (P) => { estado.plantaoCache = { em: Date.now(), plantoes: P }; salva(); fechaFolha(); animar = true; redesenha(); toast(`${P.escala.length} plantões lidos`); };
   const g = $("#plGh", el); if (g) g.onclick = async () => { g.style.opacity = ".5"; try { aplica(await lePlantoesGitHub()); } catch (er) { toast(er.message || String(er)); g.style.opacity = ""; } };

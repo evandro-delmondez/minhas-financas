@@ -102,6 +102,14 @@ function migra(e) {
   e.milhas = Object.assign({}, D.milhas, e.milhas); e.milhas.saldos = Object.assign({}, D.milhas.saldos, e.milhas.saldos);
   for (const o of Object.values(e.orcamentos || {})) for (const i of o.itens || []) { if (!i.id) i.id = uid("o"); if (!GRUPOS[i.g]) i.g = ["res", "son", "col"].includes(i.g) ? "cx" : "fix"; }
   for (const c of e.caixinhas) if (!/^mar\d$/.test(c.cor || "") && !["violet", "amber", "orange", "pink", "plum"].includes(c.cor)) c.cor = COR_ANTIGA[c.cor] || "mar1";
+  // correção (v1.3): o plano inicial somava a novembro 1 noturno e 3 sobreavisos que não existem no Meu Plantão
+  // (R$ 2.500 a mais). Saem os 4, e a renda de dezembro deixa de ficar presa em 13.650 e passa a seguir a previsão.
+  e.mig = e.mig || {};
+  if (!e.mig.rendaConfirmada) {
+    const incertos = (e.rendas || []).filter((r) => (r.id === "rnot" && /incerto/i.test(r.desc)) || (/^rs\d$/.test(r.id) && /sobreaviso/i.test(r.desc)));
+    if (incertos.length) { e.rendas = e.rendas.filter((r) => !incertos.includes(r)); e.apagados = [...(e.apagados || []), ...incertos.map((r) => r.id)]; const dez = e.orcamentos && e.orcamentos["2026-12"]; if (dez && +dez.renda === 13650) dez.renda = null; e.em = Math.max(e.em || 0, Date.now()); }
+    e.mig.rendaConfirmada = true;
+  }
   return e;
 }
 function deAntigo(a) {
@@ -194,7 +202,7 @@ function telaInicio(el, h) {
   el.innerHTML = `<div class="tela">
     <section class="hero">
       <span class="k">Próximo salário · ${diaSem(r1.recebe)}, ${diaMes(r1.recebe)} · ${em(dias1)}</span>
-      <span class="v num">${r1.max ? conta(r1.min) : "—"}${r1.max > r1.min ? ` <small>até ${brl(r1.max)}</small>` : ""}</span>
+      <span class="v num">${r1.max ? conta(r1.min) : "—"}${r1.max > r1.min ? ` <small>pode chegar a ${brl(r1.max)}</small>` : ""}</span>
       <span class="s">Plantões de ${mesNome(ref1)}${r1.usaPl ? ` · ${contados} contados no Meu Plantão` : ""}${r1.pago ? " · recebido" : ""}</span>
       <div class="pils"><span class="pil">Orçado<b class="num">${brl(t.total)}</b></span><span class="pil">${sobra >= 0 ? "Sobra" : "Estouro"}<b class="num">${brl(sobra)}</b></span><span class="pil">Caixinhas<b class="num">${brl(t.cx)}</b></span></div>
     </section>

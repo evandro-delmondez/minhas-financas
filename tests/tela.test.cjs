@@ -50,6 +50,17 @@ test("telas", async (t) => {
         const c = await p.textContent("#corpo");
         if (fs.existsSync(BK)) assert.match(c, /R\$\s?1\.464/);
         assert.match(await p.textContent("#selo"), /Salvo neste aparelho/);
+        // plano antigo (com os 4 valores incertos): ao importar, a correção tira os R$ 2.500 a mais
+        if (fs.existsSync(path.join(__dirname, "../dados/backup-antigo.json")) && nome === "computador") {
+          const ctx3 = await b.newContext({ viewport: vp }), p3 = await ctx3.newPage();
+          await p3.addInitScript(() => localStorage.setItem("mf_hoje", "2026-11-21"));
+          await p3.goto(url); await p3.click("#bvImporta"); await p3.waitForSelector("#bkTxt");
+          await p3.fill("#bkTxt", fs.readFileSync(path.join(__dirname, "../dados/backup-antigo.json"), "utf8"));
+          await p3.click("#folhaDir"); await p3.waitForTimeout(1200);
+          const heroTxt = await p3.textContent(".hero .v");
+          assert.match(heroTxt, /11\.150/); assert.doesNotMatch(heroTxt, /13\.650|14\.800/);
+          await ctx3.close();
+        }
         // assistente de IA com a API simulada: frase → proposta → lançar
         await p.evaluate(() => localStorage.setItem("mf_ia_v1", JSON.stringify({ chave: "sk-ant-teste" })));
         await p.route("https://api.anthropic.com/v1/messages", (rt) => rt.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ resumo: "Um gasto e uma renda extra", acoes: [{ tipo: "gasto_mesada", data: "2026-11-21", valor: 80, desc: "bar com o Pedro" }, { tipo: "renda", ref: "2026-11", desc: "DF Resgate", min: 960, max: 960, tipoRenda: "extra" }, { tipo: "lancamento", data: "2026-11-10", desc: "Ifood", valor: 55, cat: "delivery", origem: "nu-conta" }] }) }] }) }));

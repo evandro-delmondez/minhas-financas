@@ -63,12 +63,12 @@ test("Meu Plantão: contagem vira valor, futuro usa estimativa, sobreaviso é fa
   assert.equal(r.recebe, "2026-12-20");
 });
 
-test("plano do brief: dezembro fecha em R$ 13.650 e a meta é projetada", () => {
+test("plano do brief: renda de novembro é só o confirmado (R$ 11.150) e a meta é projetada", () => {
   const fs = require("node:fs"), p = __dirname + "/../dados/semente-estado.json";
   if (!fs.existsSync(p)) return;
   const e = JSON.parse(fs.readFileSync(p, "utf8"));
   assert.equal(N.totaisOrc(e.orcamentos["2026-12"]).total, 13650);
-  const r = N.rendaDoMes(e, "2026-11", "2026-11-21"); assert.equal(r.min, 13650); assert.equal(r.max, 14800);
+  const r = N.rendaDoMes(e, "2026-11", "2026-11-21"); assert.equal(r.min, 11150); assert.equal(r.max, 11150); // só o confirmado
   const jan = N.orcamentoDe(e, "2027-01");
   assert.ok(!jan.itens.some((i) => /Presentes|Convictus/.test(i.n)), "presentes e cabine saem em janeiro");
   const pm = N.projetaMeta(e, "2026-11-21", 60);

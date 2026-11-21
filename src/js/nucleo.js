@@ -13,7 +13,7 @@ const MESES_C = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", 
 const nomeMes = (ym, curto) => { const [a, m] = ym.split("-").map(Number); return curto ? `${MESES_C[m - 1]}/${String(a).slice(2)}` : `${MESES[m - 1]} de ${a}`; };
 const diaMes = (iso) => { const [, m, d] = iso.split("-"); return `${d}/${m}`; };
 const diasEntre = (a, b) => Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 864e5);
-const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2, minimumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2 });
+const brl = (v) => { const n = Number(v) || 0, c = Math.abs(n) < 1000 && Math.round(n * 100) % 100 !== 0 ? 2 : 0; return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: c, minimumFractionDigits: c }); };
 const brl2 = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const faixa = (a, b) => (Math.round(a) === Math.round(b) ? brl(a) : `${brl(a)} a ${brl(b)}`);
 // "1.234,56", "1234.56", "R$ -50,00", "-1,234.56" → número

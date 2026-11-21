@@ -3,19 +3,21 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>/*__CSS__*/</style>
 <!--SITE_BODY-->
-<div class="wrap">
-  <header class="topo">
-    <div class="linha">
-      <div class="marca"><span class="logo" aria-hidden="true">R$</span><div><h1>Minhas Finanças</h1><span class="note" id="hojeTxt"></span></div></div>
-      <span class="selo" id="selo" role="status" aria-live="polite">Carregando…</span>
-    </div>
-    <nav class="abas" id="abas" role="tablist" aria-label="Seções"></nav>
+<div class="app" id="app">
+  <header class="cab">
+    <div><h1 id="titulo">Início</h1><div class="sub" id="hojeTxt"></div></div>
+    <span class="selo pend" id="selo" role="status" aria-live="polite">Carregando…</span>
   </header>
-  <main id="corpo" class="secao"><div class="vazio">Carregando seu plano…</div></main>
+  <main id="corpo"><div class="carrega">Carregando seu plano…</div></main>
 </div>
+<button class="fab" id="fab" hidden>✨ Assistente</button>
+<nav class="abas" aria-label="Seções"><div id="abas" role="tablist"></div></nav>
+<div class="folha-raiz" id="folha" hidden></div>
+<canvas id="festa" hidden></canvas>
+<div class="festa-msg" id="festaMsg" aria-live="polite"></div>
 <div class="toast" id="toast" hidden></div>
 <script>/*__JS__*/</script>
 <!--SITE_END-->

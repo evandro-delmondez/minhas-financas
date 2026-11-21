@@ -10,7 +10,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const r = (p) => readFileSync(join(root, p), "utf8");
 const pkg = JSON.parse(r("package.json"));
 const strip = (t) => t.replace(/^if \(typeof module.*$/gm, "");
-const js = [`const APP_VERSION=${JSON.stringify(pkg.version)};`, strip(r("src/js/nucleo.js")), r("src/js/armazem.js"), r("src/js/app.js")].join("\n");
+const js = [`const APP_VERSION=${JSON.stringify(pkg.version)};`, strip(r("src/js/nucleo.js")), r("src/js/armazem.js"), r("src/js/app.js"), r("src/js/ia.js")].join("\n");
 const css = r("src/styles.css");
 const tpl = r("src/index.html").replace("/*__CSS__*/", () => css);
 const comJs = (pre) => tpl.replace("/*__JS__*/", () => `(()=>{\n${pre}\n${js}\n})();`);

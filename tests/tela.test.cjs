@@ -21,32 +21,49 @@ test("telas", async (t) => {
         await p.addInitScript(() => localStorage.setItem("mf_hoje", "2026-11-21"));
         await p.goto(url);
         await p.waitForSelector("#bvZero");
+        const ir = async (a) => { await p.evaluate((x) => (location.hash = x), a); await p.waitForFunction((x) => document.getElementById("titulo").textContent.length && location.hash === "#" + x, a); await p.waitForTimeout(50); };
         if (fs.existsSync(BK)) {
-          await p.click("#bvAjustes");
+          await p.click("#bvImporta");
+          await p.waitForSelector("#bkTxt");
           await p.fill("#bkTxt", fs.readFileSync(BK, "utf8"));
-          await p.click("#bkImporta");
+          await p.click("#folhaDir");
+          await p.waitForSelector(".hero");
         } else await p.click("#bvZero");
         for (const a of ABAS) {
-          await p.click(`[data-aba=${a}]`);
+          await ir(a);
           const txt = await p.textContent("#corpo");
           assert.ok(!/Não consegui montar/.test(txt), `${a}: ${txt.slice(0, 200)}`);
           const larg = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
           assert.ok(larg <= 1, `${a} rola para o lado (${larg}px)`);
         }
         // fluxo: importar CSV, mudar item do orçamento, distribuir, persistir após recarregar
-        await p.click("[data-aba=extratos]");
+        await ir("extratos");
         await p.setInputFiles("#arq", { name: "Nubank_2026-12-28.csv", mimeType: "text/csv", buffer: Buffer.from('date,title,amount\n2026-11-20,Curem - Parcela 6/12,"132,50"\n2026-11-21,Tiktok Shop,"89,90"\n') });
         await p.waitForSelector("text=2 novas de 2");
-        await p.click("[data-aba=inicio]");
+        await ir("inicio");
         assert.match(await p.textContent("#corpo"), /TikTok Shop de novo/);
-        await p.click("[data-aba=orcamento]");
-        if (fs.existsSync(BK)) assert.match(await p.textContent("#corpo"), /Orçamento de dezembro de 2026/);
+        await ir("orcamento");
+        if (fs.existsSync(BK)) assert.match(await p.textContent("#corpo"), /Dezembro de 2026/);
         await p.click("#oDistr").catch(() => {});
-        await p.reload(); await p.click("[data-aba=caixinhas]");
+        await p.waitForTimeout(300);
+        await p.reload(); await p.waitForSelector(".tela"); await ir("caixinhas");
         const c = await p.textContent("#corpo");
         if (fs.existsSync(BK)) assert.match(c, /R\$\s?1\.464/);
         assert.match(await p.textContent("#selo"), /Salvo neste aparelho/);
-        if (nome === "celular") for (const a of ["inicio", "orcamento"]) { await p.click(`[data-aba=${a}]`); await p.screenshot({ path: path.join(__dirname, `../dist/tela-${a}.png`), fullPage: true }); }
+        // assistente de IA com a API simulada: frase → proposta → lançar
+        await p.evaluate(() => localStorage.setItem("mf_ia_v1", JSON.stringify({ chave: "sk-ant-teste" })));
+        await p.route("https://api.anthropic.com/v1/messages", (rt) => rt.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ resumo: "Um gasto e uma renda extra", acoes: [{ tipo: "gasto_mesada", data: "2026-11-21", valor: 80, desc: "bar com o Pedro" }, { tipo: "renda", ref: "2026-11", desc: "DF Resgate", min: 960, max: 960, tipoRenda: "extra" }, { tipo: "lancamento", data: "2026-11-10", desc: "Ifood", valor: 55, cat: "delivery", origem: "nu-conta" }] }) }] }) }));
+        await ir("inicio");
+        await p.click("#fab");
+        await p.fill("#iaTxt", "gastei 80 no bar com o Pedro e recebi 960 da DF Resgate");
+        await p.click("#iaVai");
+        await p.waitForSelector("#iaAplica");
+        const corpoIa = await p.textContent("#folha");
+        assert.match(corpoIa, /Um gasto e uma renda extra/); assert.match(corpoIa, /DF Resgate/);
+        await p.click("#iaAplica");
+        await p.waitForTimeout(1200);
+        assert.match(await p.textContent("#corpo"), /R\$\s?270/); // mesada 350 − 80
+        if (nome === "celular") for (const a of ["inicio", "orcamento", "caixinhas", "extratos"]) { await ir(a); await p.waitForTimeout(1100); await p.screenshot({ path: path.join(__dirname, `../dist/tela-${a}.png`), fullPage: true }); }
         assert.deepEqual(erros, []);
         await ctx.close();
       });

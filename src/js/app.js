@@ -105,6 +105,26 @@ function migra(e) {
   // correção (v1.3): o plano inicial somava a novembro 1 noturno e 3 sobreavisos que não existem no Meu Plantão
   // (R$ 2.500 a mais). Saem os 4, e a renda de dezembro deixa de ficar presa em 13.650 e passa a seguir a previsão.
   e.mig = e.mig || {};
+  // v1.6: o texto entre parênteses (ou depois de ":") vira o detalhe cinza; água e luz separadas; Lightroom e Dazz Cam separados
+  if (!e.mig.detalhes) {
+    const ajusta = (itens) => itens.flatMap((i) => {
+      let it = Object.assign({}, i);
+      const m = /^(.*?)\s*\((.+)\)\s*$/.exec(it.n) || (!/^\w+\s*\+/.test(it.n) && /^([^:]{2,40}):\s*(.+)$/.exec(it.n));
+      if (m && !it.obs) { it.n = m[1].trim(); it.obs = m[2].trim(); }
+      if (/^agua \+ luz/.test(semAcento(it.n))) {
+        const v = +it.v || 0, va = v === 350 ? 150 : Math.round(v * 0.43), base = { g: it.g, p: it.p, ess: true, ate: it.ate, so: it.so, cx: it.cx };
+        return [Object.assign({}, base, { id: it.id, n: "Água", obs: "Caesb · normal R$ 75 a 104 · checar vazamento", v: va }), Object.assign({}, base, { id: it.id + "l", n: "Luz", obs: "Neoenergia · normal R$ 118 a 206", v: v - va })];
+      }
+      if (/lightroom \+ dash ?cam/.test(semAcento(it.n))) {
+        const base = { g: it.g, p: it.p, ess: false };
+        return [Object.assign({}, base, { id: it.id, n: "Lightroom", obs: "R$ 7,90 por mês", v: 7.9 }), Object.assign({}, base, { id: it.id + "d", n: "Dazz Cam", obs: "R$ 19,90 por ano", v: 1.66 })];
+      }
+      return [it];
+    });
+    for (const o of Object.values(e.orcamentos || {})) if (Array.isArray(o.itens)) o.itens = ajusta(o.itens);
+    if (Array.isArray(e.modeloItens)) e.modeloItens = ajusta(e.modeloItens);
+    e.mig.detalhes = true;
+  }
   if (!e.mig.rendaConfirmada) {
     const incertos = (e.rendas || []).filter((r) => (r.id === "rnot" && /incerto/i.test(r.desc)) || (/^rs\d$/.test(r.id) && /sobreaviso/i.test(r.desc)));
     if (incertos.length) { e.rendas = e.rendas.filter((r) => !incertos.includes(r)); e.apagados = [...(e.apagados || []), ...incertos.map((r) => r.id)]; const dez = e.orcamentos && e.orcamentos["2026-12"]; if (dez && +dez.renda === 13650) dez.renda = null; e.em = Math.max(e.em || 0, Date.now()); }
@@ -307,10 +327,10 @@ function telaOrcamento(el, h) {
     <section class="bloco"><div class="tit">Renda</div><div class="grupo">${li({ em: "💵", cor: "mar2", t: "Renda do mês", s: `previsão dos plantões de ${mesNome(r.ym)}: ${r.max ? faixa(r.min, r.max) : "nenhum"}`, v: brl(renda), chev: true, attrs: 'data-renda="1"' })}</div></section>
     ${sobra < 0 ? `<div class="aviso" style="--c:var(--bad)"><span class="ico">🚨</span><div><b>Passou da renda em ${brl(-sobra)}</b><br><small>Corte em estilo de vida ou nas caixinhas.</small></div></div>` : ""}
     ${Object.entries(GRUPOS).map(([g, G]) => `<section class="bloco"><div class="tit">${G.n}<b class="num">${brl(t[g])}</b></div><div class="grupo">
-      ${o.itens.filter((i) => i.g === g).map((i) => li({ em: emoItem(i), cor: COR_GRUPO[g], t: esc(i.n), s: (ehEssencial(i) ? '<span class="etq" style="--c:var(--mar2)">essencial</span> ' : '<span class="etq">pausável</span> ') + esc([i.p, i.ate ? `até ${nomeMes(i.ate, true)}` : "", i.so ? `só em ${nomeMes(i.so, true)}` : ""].filter(Boolean).join(" · ")), v: brl(+i.v || 0), chev: true, attrs: `data-item="${i.id}"` })).join("")}
+      ${o.itens.filter((i) => i.g === g).map((i) => li({ em: emoItem(i), cor: COR_GRUPO[g], t: esc(i.n), s: (ehEssencial(i) ? '<span class="etq" style="--c:var(--mar2)">essencial</span> ' : '<span class="etq">pausável</span> ') + esc([i.obs, i.p, i.ate ? `até ${nomeMes(i.ate, true)}` : "", i.so ? `só em ${nomeMes(i.so, true)}` : ""].filter(Boolean).join(" · ")), v: brl(+i.v || 0), chev: true, attrs: `data-item="${i.id}"` })).join("")}
       <button class="li add" data-novo="${g}" type="button"><span class="ico">＋</span><span class="t">Adicionar em ${G.n.toLowerCase()}</span></button></div></section>`).join("")}
     <section class="bloco">
-      ${o.distribuido ? `<div class="aviso" style="--c:var(--ok)"><span class="ico">✅</span><div><b>Distribuído nas caixinhas em ${diaMes(o.distribuido)}</b><br><button class="lnk" id="oDesfaz" type="button">Desfazer distribuição</button></div></div>` : `<button class="btn" id="oDistr" type="button">Dia ${estado.config.diaSalario}: distribuir nas caixinhas</button><p class="rod">Lança nas caixinhas o valor dos itens cujo "onde pagar" é uma caixinha. Antes, pague a fatura.</p>`}
+      ${o.distribuido ? `<div class="aviso" style="--c:var(--ok)"><span class="ico">✅</span><div><b>Distribuído nas caixinhas em ${diaMes(o.distribuido)}</b><br><button class="lnk" id="oDesfaz" type="button">Desfazer distribuição</button></div></div>` : `<button class="btn" id="oDistr" type="button">Dia ${estado.config.diaSalario}: guardar nas caixinhas</button><p class="rod">Quando o salário cair: pague a fatura e separe no app do Nubank o valor de cada caixinha deste orçamento. Depois toque aqui para registrar: o app soma esses valores no saldo de cada caixinha, para acompanhar as metas.</p>`}
       <button class="btn sec" id="oModelo" type="button">Usar como modelo dos próximos meses</button>
     </section>
     <section class="bloco"><div class="tit">Fatura do Ultravioleta prevista</div><div class="grupo">
@@ -342,6 +362,7 @@ function folhaItem(ym, id, grupoNovo) {
   abreFolha(id ? "Editar item" : "Novo item", `<div class="grupo">
       ${campo("Nome", `<input id="iN" value="${esc(i.n)}" placeholder="ex.: Mercado">`)}
       ${campo("Valor por mês", `<input id="iV" inputmode="decimal" value="${vIn(i.v)}" placeholder="R$ 0,00">`)}
+      ${campo("Detalhe", `<input id="iO" value="${esc(i.obs || "")}" placeholder="ex.: 14 parcelas de R$ 2.136">`)}
       ${campo("Grupo", `<select id="iG">${Object.entries(GRUPOS).map(([k, G]) => `<option value="${k}" ${k === i.g ? "selected" : ""}>${G.n}</option>`).join("")}</select>`)}
       ${campo("Onde pagar", `<input id="iP" list="ondes" value="${esc(i.p || "")}" placeholder="Ultravioleta"><datalist id="ondes">${ondes.map((x) => `<option value="${esc(x)}">`).join("")}</datalist>`)}
       ${campo("Emoji", `<input id="iE" value="${esc(i.em || "")}" placeholder="${emoItem(i)}" maxlength="4">`)}
@@ -354,7 +375,7 @@ function folhaItem(ym, id, grupoNovo) {
       const n = $("#iN", f).value.trim(); if (!n) { toast("Dê um nome ao item"); return; }
       const O = garanteOrc(ym); let it = id ? O.itens.find((x) => x.id === id) : null;
       if (!it) { it = { id: uid("o") }; O.itens.push(it); }
-      Object.assign(it, { n, v: numero($("#iV", f).value), g: $("#iG", f).value, p: $("#iP", f).value.trim() });
+      Object.assign(it, { n, v: numero($("#iV", f).value), g: $("#iG", f).value, p: $("#iP", f).value.trim(), obs: $("#iO", f).value.trim() });
       const e = $("#iE", f).value.trim(); if (e) it.em = e; else delete it.em;
       const a = $("#iA", f).value; if (a) it.ate = a; else delete it.ate;
       it.ess = $("#iEss", f).checked;
@@ -387,6 +408,7 @@ function telaCaixinhas(el, h) {
       <span class="bar" style="margin-top:8px"><i style="--w:${pct}%"></i></span>
       <div class="pils">${pm.marcos.map((m) => `<span class="pil">${esc(m.n.split(" (")[0].replace(/ no Nubank/, ""))}<b>${m.ym === "feito" ? "✓ feito" : m.ym ? nomeMes(m.ym, true) : "—"}</b></span>`).join("")}</div>
     </section>
+    <details class="grupo"><summary class="li"><span class="ico" style="--c:var(--mar1)">💡</span><span class="t"><span>Como as caixinhas funcionam</span><small>toque para ler</small></span></summary><div class="li sem-ico"><span class="t" style="font-size:14.5px;line-height:1.55">Cada caixinha aqui é espelho de uma caixinha no app do Nubank. O dinheiro fica lá, rendendo; aqui você vê o saldo e a meta.<br><br><b>Todo dia 20</b>, quando o salário cai: 1) pague a fatura; 2) no Nubank, separe o valor de cada caixinha do orçamento do mês; 3) aqui, em Orçamento, toque em <b>Guardar nas caixinhas</b> para registrar.<br><br><b>Reserva</b>: emergência, a meta de 6 meses de custo. <b>Renda</b>: o colchão que cobre mês fraco (como fevereiro). <b>CRM, Provas, Carro</b>: contas certas que não são mensais. <b>Sonhos</b>: troca do carro e viagens. <b>Livre</b>: a mesada da semana, gasta no débito.<br><br>Tirou dinheiro de uma caixinha no Nubank? Toque nela e use <b>Tirar</b>.</span></div></details>
     <section class="bloco"><div class="tit">Caixinhas</div><div class="grupo">
       ${estado.caixinhas.map((c) => { const s = saldoCx(estado, c.id); return li({ em: emoCx(c), cor: c.cor || "mar1", t: esc(c.nome), s: c.meta ? `${Math.min(100, (s / c.meta) * 100).toFixed(0)}% de ${brl(c.meta)}` : c.naMeta ? "conta na meta" : "fora da meta", v: brl(s), chev: true, attrs: `data-cx="${c.id}"`, extra: c.meta ? barra((s / c.meta) * 100, c.cor || "mar1") : "" }); }).join("")}
       <button class="li add" data-novacx type="button"><span class="ico">＋</span><span class="t">Nova caixinha</span></button></div></section>

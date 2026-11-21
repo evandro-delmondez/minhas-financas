@@ -61,6 +61,12 @@ test("telas", async (t) => {
           assert.match(heroTxt, /11\.150/); assert.doesNotMatch(heroTxt, /13\.650|14\.800/);
           await ctx3.close();
         }
+        // detalhes viram linha cinza; água e luz separadas; Dazz Cam
+        if (fs.existsSync(BK)) {
+          await ir("orcamento"); const orc = await p.textContent("#corpo");
+          assert.match(orc, /Mentoria IPM/); assert.doesNotMatch(orc, /Mentoria IPM \(/); assert.match(orc, /14 parcelas de R\$ 2\.136/);
+          assert.match(orc, /Água[\s\S]*Luz/); assert.match(orc, /Dazz Cam/); assert.doesNotMatch(orc, /Dashcam/);
+        }
         // assistente de IA com a API simulada: frase → proposta → lançar
         await p.evaluate(() => localStorage.setItem("mf_ia_v1", JSON.stringify({ chave: "sk-ant-teste" })));
         const resp = (o) => JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(o) }] });

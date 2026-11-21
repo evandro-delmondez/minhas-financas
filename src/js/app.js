@@ -89,7 +89,7 @@ function ESTADO_PADRAO() {
       milheiroRef: 25, trechoMilhas: 13000, bonusTipico: 80, parcelasManual: {}, raioxRef: [],
     },
     orcamentos: {}, modeloItens: [], caixinhas: CX_PADRAO(), movimentos: [], rendas: [], gastosSemana: [], eventos: [], pendencias: [],
-    milhas: { saldos: { nubank: 0, smiles: 0, latam: 0, azul: 0 }, promocoes: [] }, ajustes: {}, plantaoCache: null, apagados: [], festas: {}, chaves: {},
+    milhas: { saldos: { nubank: 0, smiles: 0, latam: 0, azul: 0 }, promocoes: [] }, ajustes: {}, plantaoCache: null, apagados: [], festas: {}, chaves: {}, memoria: "",
   };
 }
 const COR_ANTIGA = { green: "mar1", teal: "mar2", sky: "mar6", indigo: "mar5", violet: "violet", orange: "mar4", amber: "amber" };

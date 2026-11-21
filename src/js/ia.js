@@ -134,11 +134,13 @@ function contextoConsultor() {
     proximasDatas: eventos(estado, h, 2).slice(0, 12).map((e) => `${e.data} ${e.t}`),
     milhas: estado.milhas.saldos, cartao: "Nubank Ultravioleta (R$ 89/mês, isento com R$ 8 mil na fatura ou R$ 50 mil guardados); fatura vence ~dia 28",
     prioridades: "residência médica (estudo) acima de plantão extra; equilíbrio entre reserva e vida boa (inclui ver o namorado em Salvador)",
+    memoria: (estado.memoria || "").slice(0, 20000) || undefined,
   };
 }
 const CONSULTOR = () => `Você é o consultor financeiro e secretário pessoal dentro do app "Minhas Finanças" de um médico plantonista no Brasil. Você conhece os números dele (abaixo) e conversa como um consultor de alto nível: inteligente, caloroso, direto, com números concretos.
 
 Como pensar:
+- Leia "memoria" nos números dele: é o que ele já te contou sobre a vida dele. Use isso e não peça de novo.
 - Dinheiro só conta quando já existe: fichas contadas no Meu Plantão (R$ 50 por ficha, R$ 150 por UTI) e valores já recebidos. Plantão marcado sem fichas vale zero. Nunca estime valor de plantão.
 - Nada de regras engessadas. As metas e referências que ele definiu são guias, não leis. Quando ele quer algo (uma compra, um parcelamento, uma viagem), mostre o impacto real (no mês, na fatura, na reserva, nas metas) e ajude a encaixar: o que ajustar, em que mês cabe melhor, alternativas. Ele decide.
 - Pense no essencial (não dá para pausar) e no pausável. Diga quanto ele precisa faturar e quantas fichas e plantões isso dá no ritmo dele.
@@ -185,6 +187,7 @@ function telaConsultor(el, h) {
   el.innerHTML = `<div class="tela" style="padding-bottom:90px">
     ${!iaModo() ? `<div class="aviso"><span class="ico">🔑</span><div><b>Ligue a IA para conversar</b><br><small>Dentro do Claude é automático. No site instalado, ponha a chave em Ajustes → IA.</small></div></div>` : ""}
     ${chat.length ? "" : `<section class="hero fundo"><span class="k">💬 Consultor</span><span class="v" style="font-size:22px">Pergunte qualquer coisa sobre o seu dinheiro</span><span class="s">Ele vê seus plantões contados, orçamento, caixinhas, parcelas e datas, e responde com os seus números.</span></section>`}
+    <div class="grupo"><button class="li" id="memAbre" type="button"><span class="ico" style="--c:var(--mar5)">🧠</span><span class="t"><span>O que o consultor sabe sobre você</span><small>${estado.memoria ? `${estado.memoria.length.toLocaleString("pt-BR")} caracteres de memória` : "cole aqui o resumo da sua consultoria"}</small></span><span class="chev">›</span></button></div>
     <div class="conversa" id="conversa">${chat.map((m) => bolha(m)).join("")}${chatOcupado ? `<div class="bolha ia pensando">Pensando…</div>` : ""}</div>
     <div class="chips">${SUGESTOES.map((t) => `<button class="chip" data-sug="${esc(t)}" type="button">${esc(t)}</button>`).join("")}</div>
     ${chat.length ? `<button class="lnk" id="chatLimpa" type="button" style="justify-self:start;font-size:14px">Começar conversa nova</button>` : ""}
@@ -201,6 +204,7 @@ function telaConsultor(el, h) {
     } catch (e) { estado.chat.push({ id: uid("c"), de: "ia", t: `⚠️ ${e.message || e}`, erro: true, em: Date.now() }); }
     chatOcupado = false; estado.chat = estado.chat.slice(-60); salva(); if (ui.aba === "consultor") { redesenha(); rolaChat(); }
   };
+  $("#memAbre", el).onclick = folhaMemoria;
   $("#chatForm").onsubmit = (e) => { e.preventDefault(); const i = $("#chatTxt"); const t = i.value; i.value = ""; envia(t); };
   $$("[data-sug]", el).forEach((b) => (b.onclick = () => envia(b.dataset.sug)));
   const lp = $("#chatLimpa", el); if (lp) lp.onclick = () => { const ant = estado.chat; estado.chat = []; salva(); redesenha(); toast("Conversa nova", { rot: "Desfazer", fn: () => { estado.chat = ant; salva(); redesenha(); } }); };
@@ -208,6 +212,12 @@ function telaConsultor(el, h) {
     const m = estado.chat.find((x) => x.id === b.dataset.lanca); if (!m || m.lancado) return;
     const n = aplicaAcoes([], m.acoes || []); m.lancado = true; salva(); redesenha(); if (n) festa("✨", `${n} ${n === 1 ? "lançamento feito" : "lançamentos feitos"}`);
   }));
+}
+function folhaMemoria() {
+  abreFolha("Memória do consultor", `<p class="rod">Tudo o que o consultor precisa saber sobre você e que não está nos números: história, combinados, preferências, contexto da família. Ele lê isto antes de cada resposta e cada plano. Vale colar aqui o resumo da sua consultoria no Claude.</p>
+    <div class="grupo"><label class="campo col"><textarea id="memTxt" style="font-family:var(--f);font-size:15px;min-height:300px" placeholder="Ex.: Minha mãe fazia o meu mercado até nov/2026; agora sou eu (uns R$ 900 por mês).">${esc(estado.memoria || "")}</textarea></label></div>`, (f) => {
+    $("#folhaDir").onclick = () => { estado.memoria = $("#memTxt", f).value.trim(); salva(); fechaFolha(); redesenha(); toast("Memória salva: o consultor já usa"); };
+  }, "Salvar");
 }
 function bolha(m) {
   const ac = (m.acoes || []).map(iaDescreve).filter(Boolean);

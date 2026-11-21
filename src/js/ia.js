@@ -1,9 +1,10 @@
 /* ---------- Assistente de IA: manda extrato, foto, print, PDF ou uma frase; ela devolve o que lançar ----------
    No Claude (artefato): usa a sua conta pelo recurso "sample", sem chave.
-   No site instalado: usa a API da Anthropic com a sua chave, guardada só neste aparelho (nunca na nuvem nem no backup).
+   No site instalado: usa a API da Anthropic com a sua chave, que vai junto no plano (nuvem privada e backup) para valer em todos os aparelhos.
    Nada é lançado sem você conferir: a IA propõe, você marca e aplica. CSV de banco é lido pelo próprio app, sem IA. */
 const IA_LS = "mf_ia_v1", IA_MODELO = "claude-opus-5-5";
-const iaChave = () => (lsGet(IA_LS, {}) || {}).chave || "";
+// a chave fica neste aparelho e também no plano (nuvem e backup), para valer em todos os seus aparelhos
+const iaChave = () => (lsGet(IA_LS, {}) || {}).chave || (typeof estado !== "undefined" && estado && estado.chaves && estado.chaves.ia) || "";
 let iaSample = null, iaLimites = null;
 const iaModo = () => (iaSample ? "claude" : iaChave() ? "api" : "");
 (async () => { try { if (window.claude && window.claude.use) { iaSample = await window.claude.use("sample"); if (iaSample) iaLimites = await iaSample.limits().catch(() => null); } } catch (e) { iaSample = null; } })();
@@ -199,10 +200,10 @@ function folhaIaCfg() {
   const modo = iaModo();
   abreFolha("IA", `${modo === "claude" ? `<div class="aviso" style="--c:var(--ok)"><span class="ico">✅</span><div><b>Ligada pela sua conta do Claude</b><br><small>Dentro do Claude, a IA usa a sua própria conta: não precisa de chave. Fotos e prints vão direto; PDF tem o texto lido aqui e enviado.</small></div></div>` : ""}
     <div class="grupo">${campo("Chave da API (site instalado)", `<input id="iaK" type="password" autocomplete="off" placeholder="${iaChave() ? "guardada neste aparelho" : "sk-ant-…"}">`)}</div>
-    <p class="rod">Crie em console.anthropic.com → API Keys. Ela fica só neste aparelho, nunca vai para a nuvem nem para o backup. Cada leitura é cobrada na sua conta da API (um extrato custa centavos). Modelo: Claude Opus 5.5.</p>
+    <p class="rod">Crie em console.anthropic.com → API Keys. Ela vai junto com o seu plano (na nuvem privada e no backup), então vale em todos os seus aparelhos. Não mande o backup para ninguém. Cada leitura é cobrada na sua conta da API (um extrato custa centavos). Modelo: Claude Opus 5.5.</p>
     ${iaChave() ? `<div class="grupo"><button class="li perigo" id="iaEsq" type="button">Esquecer a chave</button></div>` : ""}`, (f) => {
-    $("#folhaDir").onclick = () => { const k = $("#iaK", f).value.trim(); if (k) { if (!/^sk-ant-/.test(k)) { toast("A chave começa com sk-ant-"); return; } lsSet(IA_LS, { chave: k }); toast("IA ligada neste aparelho"); } fechaFolha(); redesenha(); };
-    const e = $("#iaEsq", f); if (e) e.onclick = () => { try { localStorage.removeItem(IA_LS); } catch (er) {} fechaFolha(); redesenha(); toast("Chave apagada deste aparelho"); };
+    $("#folhaDir").onclick = () => { const k = $("#iaK", f).value.trim(); if (k) { if (!/^sk-ant-/.test(k)) { toast("A chave começa com sk-ant-"); return; } lsSet(IA_LS, { chave: k }); estado.chaves = Object.assign({}, estado.chaves, { ia: k }); salva(); toast("IA ligada em todos os seus aparelhos"); } fechaFolha(); redesenha(); };
+    const e = $("#iaEsq", f); if (e) e.onclick = () => { try { localStorage.removeItem(IA_LS); } catch (er) {} if (estado.chaves) delete estado.chaves.ia; salva(); fechaFolha(); redesenha(); toast("Chave apagada de todos os aparelhos"); };
   }, "Salvar");
 }
 

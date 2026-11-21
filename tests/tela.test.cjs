@@ -63,6 +63,23 @@ test("telas", async (t) => {
         await p.click("#iaAplica");
         await p.waitForTimeout(1200);
         assert.match(await p.textContent("#corpo"), /R\$\s?270/); // mesada 350 − 80
+        // chave da IA vai no plano (nuvem e backup); chave do GitHub volta pelo backup
+        await ir("ajustes");
+        await p.click("#iaAbre"); await p.fill("#iaK", "sk-ant-teste-123"); await p.click("#folhaDir"); await p.waitForTimeout(400);
+        const est = await p.evaluate(() => JSON.parse(localStorage.getItem("mf_estado_v1")));
+        assert.equal(est.chaves.ia, "sk-ant-teste-123");
+        if (nome === "computador") {
+          await p.route("https://api.github.com/**", (rt) => rt.abort());
+          const ctx2 = await b.newContext({ viewport: vp }), p2 = await ctx2.newPage();
+          await p2.route("https://api.github.com/**", (rt) => rt.abort());
+          await p2.goto(url); await p2.waitForSelector("#bvImporta"); await p2.click("#bvImporta"); await p2.waitForSelector("#bkTxt");
+          await p2.fill("#bkTxt", JSON.stringify({ app: "minhas-financas", v: 1, estado: est, tx: {}, chaves: { gh: { repo: "dono/privado", chave: "github_pat_teste", arquivo: "minhas-financas.json" } } }));
+          await p2.click("#folhaDir"); await p2.waitForTimeout(500);
+          const g = await p2.evaluate(() => JSON.parse(localStorage.getItem("mf_gh_v1")));
+          assert.equal(g.chave, "github_pat_teste"); assert.equal(g.repo, "dono/privado");
+          assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem("mf_estado_v1")).chaves.ia), "sk-ant-teste-123");
+          await ctx2.close();
+        }
         if (nome === "celular") for (const a of ["inicio", "orcamento", "caixinhas", "extratos"]) { await ir(a); await p.waitForTimeout(1100); await p.screenshot({ path: path.join(__dirname, `../dist/tela-${a}.png`), fullPage: true }); }
         assert.deepEqual(erros, []);
         await ctx.close();

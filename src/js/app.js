@@ -89,7 +89,7 @@ function ESTADO_PADRAO() {
       milheiroRef: 25, trechoMilhas: 13000, bonusTipico: 80, parcelasManual: {}, raioxRef: [],
     },
     orcamentos: {}, modeloItens: [], caixinhas: CX_PADRAO(), movimentos: [], rendas: [], gastosSemana: [], eventos: [], pendencias: [],
-    milhas: { saldos: { nubank: 0, smiles: 0, latam: 0, azul: 0 }, promocoes: [] }, ajustes: {}, plantaoCache: null, apagados: [], festas: {},
+    milhas: { saldos: { nubank: 0, smiles: 0, latam: 0, azul: 0 }, promocoes: [] }, ajustes: {}, plantaoCache: null, apagados: [], festas: {}, chaves: {},
   };
 }
 const COR_ANTIGA = { green: "mar1", teal: "mar2", sky: "mar6", indigo: "mar5", violet: "violet", orange: "mar4", amber: "amber" };
@@ -637,7 +637,7 @@ function telaAjustes(el, h) {
       <button class="li" id="bkBaixa" type="button"><span class="ico" style="--c:var(--mar1)">⬇️</span><span class="t">Baixar arquivo</span></button>
       <button class="li" id="bkImporta" type="button"><span class="ico" style="--c:var(--mar2)">📥</span><span class="t">Importar backup</span><span class="chev">›</span></button>
       ${cop.length ? `<button class="li" id="bkCopias" type="button"><span class="ico" style="--c:var(--gray)">🕘</span><span class="t"><span>Cópias de segurança</span><small>${cop.length} neste aparelho</small></span><span class="chev">›</span></button>` : ""}</div>
-      <p class="rod">As chaves do GitHub e da IA nunca vão junto no backup.</p></section>
+      <p class="rod">O backup leva junto as chaves do GitHub e da IA, para um aparelho novo já abrir tudo ligado. Guarde o arquivo só para você e não mande para ninguém.</p></section>
     <section class="bloco"><div class="tit">Datas e limites</div><div class="grupo">
       ${campo("Dia do salário", `<input data-k="config.diaSalario" data-num inputmode="numeric" value="${cfg.diaSalario}">`)}
       ${campo("Mesada por semana", `<input data-k="config.mesadaSemanal" data-num inputmode="decimal" value="${vIn(cfg.mesadaSemanal)}">`)}
@@ -667,7 +667,7 @@ function telaAjustes(el, h) {
       <label class="campo col"><span>Plantões: repositório (vazio = o mesmo)</span><input id="ghPlRepo" spellcheck="false" autocapitalize="off" value="${esc(gh.plRepo || "")}"></label>
       <label class="campo col"><span>Plantões: arquivo</span><input id="ghPlArq" spellcheck="false" autocapitalize="off" value="${esc(gh.plArquivo || "meus-padroes.json")}"></label>
       <label class="campo col"><span>Chave do GitHub</span><input id="ghChave" type="password" autocomplete="off" placeholder="${gh.chave ? "guardada neste aparelho" : "github_pat_…"}"></label></div>
-    <p class="rod">Pode ser a mesma chave da nuvem do Meu Plantão. Ela fica só neste aparelho.${nuvem.modo === "claude" ? " Dentro do Claude o GitHub não é alcançável: use Renda → colar o backup." : ""}</p>
+    <p class="rod">Pode ser a mesma chave da nuvem do Meu Plantão. Ela fica neste aparelho e vai junto no backup: num aparelho novo, importar o backup já liga tudo.${nuvem.modo === "claude" ? " Dentro do Claude o GitHub não é alcançável: use Renda → colar o backup." : ""}</p>
     ${gh.chave ? `<div class="grupo"><button class="li perigo" id="ghEsquece" type="button">Esquecer a chave neste aparelho</button></div>` : ""}`, (f) => {
     $("#folhaDir").onclick = async () => {
       const repo = $("#ghRepo", f).value.trim(), ch = $("#ghChave", f).value.trim();
@@ -680,7 +680,7 @@ function telaAjustes(el, h) {
     };
     const e = $("#ghEsquece", f); if (e) e.onclick = () => { delete gh.chave; lsSet(LS.gh, gh); if (nuvem.modo === "github") nuvem.modo = "local"; fechaFolha(); redesenha(); toast("Chave apagada deste aparelho"); };
   }, "Salvar");
-  const bk = () => JSON.stringify({ app: "minhas-financas", v: 1, exportadoEm: new Date().toISOString(), estado, tx: txs });
+  const bk = () => JSON.stringify({ app: "minhas-financas", v: 1, exportadoEm: new Date().toISOString(), estado, tx: txs, chaves: gh.chave ? { gh } : {} });
   $("#bkCopia", el).onclick = async () => { if (!(await copia(bk()))) abreFolha("Backup", `<div class="grupo"><label class="campo col"><span class="rod" style="padding:0">Selecione tudo e copie.</span><textarea readonly>${esc(bk())}</textarea></label></div>`); };
   $("#bkBaixa", el).onclick = async () => {
     const nome = `minhas-financas-${h}.json`;
@@ -702,7 +702,12 @@ function folhaImporta() {
     $("#folhaDir").onclick = () => {
       let d; try { d = JSON.parse($("#bkTxt", f).value); } catch (e) { toast("Não é um backup válido"); return; }
       const antes = { estado, txs };
-      if (d && d.app === "minhas-financas" && d.estado) { estado = migra(d.estado); txs = juntaTx(txs, d.tx || {}); }
+      if (d && d.app === "minhas-financas" && d.estado) {
+        estado = migra(d.estado); txs = juntaTx(txs, d.tx || {});
+        // chaves que vieram no backup: o aparelho novo já abre com a nuvem, os plantões e a IA ligados
+        const g = d.chaves && d.chaves.gh;
+        if (g && g.repo && g.chave && !gh.chave) { gh = Object.assign({}, g); lsSet(LS.gh, gh); if (nuvem.modo !== "claude") { nuvem.modo = "github"; setTimeout(() => { sincroniza(); lePlantoesGitHub().then((P) => { estado.plantaoCache = { em: Date.now(), plantoes: P }; salva(); redesenha(); }).catch(() => {}); }, 200); } }
+      }
       else if (d && Array.isArray(d.itens)) estado = migra(deAntigo(d));
       else { toast("Formato desconhecido"); return; }
       salva(Object.keys(txs)); fechaFolha(); animar = true; vaiPara("inicio");

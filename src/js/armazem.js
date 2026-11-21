@@ -4,7 +4,8 @@
       repositório privado do GitHub (site instalado). As duas juntam sem perder: estado mais novo vence,
       transações e movimentos se unem por id.
    3) Selo "Salvo às HH:MM" e aviso ao sair com algo ainda não enviado.
-   A chave do GitHub fica só neste aparelho (nunca vai para a nuvem nem para o backup). */
+   A chave do GitHub fica neste aparelho e vai junto no backup (não na nuvem: é ela que abre a nuvem).
+   A chave da IA vai no próprio plano (estado.chaves), então viaja pela nuvem privada e pelo backup. */
 const LS = { est: "mf_estado_v1", tx: "mf_tx_v1", copias: "mf_copias_v1", gh: "mf_gh_v1", pend: "mf_pend_v1", ui: "mf_ui_v1" };
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };

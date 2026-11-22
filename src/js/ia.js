@@ -132,7 +132,7 @@ function contextoConsultor() {
     mesadaDaSemana: { valor: ms.valor, gasto: Math.round(ms.gasto), resta: Math.round(ms.resta) },
     pendencias: (estado.pendencias || []).filter((p) => !p.feito).map((p) => p.t),
     proximasDatas: eventos(estado, h, 2).slice(0, 12).map((e) => `${e.data} ${e.t}`),
-    milhas: estado.milhas.saldos, cartao: "Nubank Ultravioleta (R$ 89/mês, isento com R$ 8 mil na fatura ou R$ 50 mil guardados); fatura vence ~dia 28",
+    milhas: estado.milhas.saldos,
     prioridades: "residência médica (estudo) acima de plantão extra; equilíbrio entre reserva e vida boa (inclui ver o namorado em Salvador)",
     memoria: (estado.memoria || "").slice(0, 20000) || undefined,
   };

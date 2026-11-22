@@ -804,11 +804,22 @@ async function inicia() {
   if (estado) { estado = migra(estado); redesenha(); }
   await iniciaNuvem();
   if (!estado) { telaBoasVindas(); desenhaAbas(); mostraSelo(); } else { animar = !$("#corpo .tela"); redesenha(); }
-  // site instalado com GitHub: atualiza os plantões ao abrir
-  if (estado && nuvem.modo === "github" && gh.chave && (!estado.plantaoCache || Date.now() - estado.plantaoCache.em > 30 * 60e3)) lePlantoesGitHub().then((P) => { estado.plantaoCache = { em: Date.now(), plantoes: P }; salva(); redesenha(); }).catch(() => {});
+  // site instalado com GitHub: relê os plantões do Meu Plantão ao abrir e sempre que voltar para o app
+  atualizaPlantoes();
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") atualizaPlantoes(); });
   if ("serviceWorker" in navigator && location.protocol === "https:" && window.MF_SITE) navigator.serviceWorker.register("sw.js").then((r) => r.update()).catch(() => {});
   checaVersao(true);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checaVersao(false); });
+}
+let plLendo = false;
+async function atualizaPlantoes() {
+  if (!estado || !gh.chave || plLendo || !navigator.onLine) return;
+  plLendo = true;
+  try {
+    const P = await lePlantoesGitHub(), antes = JSON.stringify(estado.plantaoCache && estado.plantaoCache.plantoes);
+    if (JSON.stringify(P) !== antes) { estado.plantaoCache = { em: Date.now(), plantoes: P }; salva(); redesenha(); toast("Plantões atualizados do Meu Plantão"); }
+  } catch (e) {}
+  plLendo = false;
 }
 // site instalado: confere se há versão nova publicada. Ao abrir, atualiza sozinho; ao voltar para o app, oferece.
 const versaoN = (v) => String(v || "0").split(".").map((x) => +x || 0).reduce((a, x) => a * 1000 + x, 0);

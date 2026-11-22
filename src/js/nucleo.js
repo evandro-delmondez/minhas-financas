@@ -288,12 +288,16 @@ function plContagem(x, P) {
 function plantoesDoMes(P, ym, est = EST_PADRAO, hojeIso) {
   if (!P || !Array.isArray(P.escala)) return [];
   const L = P.locais || {};
+  // as fichas de um turno valem uma vez só: se há um plantão normal no mesmo turno, o sobreaviso não conta de novo
+  const chave = (x) => x.data + (PL_NOITE.includes(x.turno) ? "N" : "D");
+  const cobertas = new Set(P.escala.filter((x) => x && !x.sobre && String(x.data).startsWith(ym)).flatMap((x) => (PL_LONGO.includes(x.turno) ? [x.data + "D", x.data + "N"] : [chave(x)])));
   return P.escala.filter((x) => x && String(x.data).startsWith(ym)).map((x) => {
     const loc = L[x.local] || {}; const nomeLocal = loc.nome || x.local || "";
     if (loc.ativo === false) return null;
     const turno = PL_TURNOS[x.turno] ? x.turno : "D";
     const rot = (x.sobre ? "Sobreaviso " : "") + PL_TURNOS[turno][0].toLowerCase();
     if (loc.tipo === "salario") return { data: x.data, rot, local: nomeLocal, min: 0, max: 0, status: "salário" };
+    if (x.sobre && !x.manual && cobertas.has(chave(x))) return { data: x.data, rot, local: nomeLocal, min: 0, max: 0, status: "no plantão do dia" };
     const c = x.manual || plContagem(x, P);
     const passou = x.data < hojeIso || +x.fimT;
     if (c && ((c.n || 0) + (c.uti || 0) > 0 || passou)) {

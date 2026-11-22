@@ -120,3 +120,11 @@ test("conferência: fixo pela última cobrança, variável pela média, IOF e pa
   const cf = N.confereOrcamento(itens, tx, "2026-11-21");
   assert.deepEqual(cf.map((c) => [c.id, c.sugerido]), [["a", 299.9]]); // água: média 138 contra 150 fica dentro da margem de 10% das contas variáveis
 });
+
+test("sobreaviso e plantão normal no mesmo turno: as fichas contam uma vez só", () => {
+  const P = { escala: [{ data: "2026-11-21", turno: "V", local: "h", sobre: true }, { data: "2026-11-21", turno: "V", local: "h", fimT: 1 }, { data: "2026-11-22", turno: "N", local: "h", sobre: true }],
+    contagem: { "2026-11-21D": { n: 12, uti: 0 }, "2026-11-22N": { n: 3, uti: 0 } }, locais: { h: { tipo: "porAlta", porAlta: 50, porUti: 150 } } };
+  const pl = N.plantoesDoMes(P, "2026-11", N.EST_PADRAO, "2026-11-23");
+  assert.equal(pl.reduce((a, p) => a + p.min, 0), 600 + 150); // sábado 12 fichas uma vez; domingo o sobreaviso chamado conta
+  assert.ok(pl.some((p) => p.status === "no plantão do dia"));
+});
